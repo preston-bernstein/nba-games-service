@@ -19,13 +19,17 @@ go mod tidy
 ```
 
 ## Configuration
- Environment variables (optional; defaults shown). See `.env.example`:
+Environment variables (optional; defaults shown). See `.env.example`:
 - `PORT` (default `4000`)
 - `POLL_INTERVAL` (default `30s`)
 - `PROVIDER` (default `fixture`; `balldontlie` available)
 - `BALDONTLIE_BASE_URL` (default `https://api.balldontlie.io/v1`)
 - `BALDONTLIE_API_KEY` (optional; use if your balldontlie instance requires auth)
 - `BALDONTLIE_TIMEZONE` (default `America/New_York`; controls which “today” date is requested from balldontlie)
+- `BALDONTLIE_MAX_PAGES` (default `5`; cap on paginated fetches)
+- `LOG_LEVEL` (optional; `debug`/`info`/`warn`/`error`, default `info`)
+- `LOG_FORMAT` (optional; `json` default, or `text`)
+  - Use `LOG_FORMAT=text` and `LOG_LEVEL=debug` for local development to get readable output with source hints; keep `json` for prod.
 
 ## Run
 Using Make:
@@ -49,7 +53,7 @@ curl http://localhost:4000/games/fixture-1
 ## Endpoints
 - `GET /health` → `{"status":"ok"}`
 - `GET /games/today` → `{ "date": "YYYY-MM-DD", "games": [...] }`
-- `GET /games?date=YYYY-MM-DD` → games for a specific date (defaults to “today” if omitted; uses server timezone config)
+- `GET /games?date=YYYY-MM-DD&tz=America/New_York` → games for a specific date (defaults to “today” if omitted; optional `tz` influences “today” when `date` is missing; invalid `tz` falls back to server default)
 - `GET /games/{id}` → single game or 404
 
 When using the fixture provider, `games/today` returns two deterministic sample games.

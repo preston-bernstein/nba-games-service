@@ -26,6 +26,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Balldontlie.Timezone != defaultBdlTimezone {
 		t.Fatalf("expected default balldontlie timezone %s, got %s", defaultBdlTimezone, cfg.Balldontlie.Timezone)
 	}
+	if cfg.Balldontlie.MaxPages != defaultBdlMaxPages {
+		t.Fatalf("expected default balldontlie max pages %d, got %d", defaultBdlMaxPages, cfg.Balldontlie.MaxPages)
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
@@ -35,6 +38,7 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv(envBdlBaseURL, "http://example.com/api")
 	t.Setenv(envBdlAPIKey, "secret-key")
 	t.Setenv(envBdlTimezone, "UTC")
+	t.Setenv(envBdlMaxPages, "2")
 
 	cfg := Load()
 
@@ -55,6 +59,9 @@ func TestLoadOverrides(t *testing.T) {
 	}
 	if cfg.Balldontlie.Timezone != "UTC" {
 		t.Fatalf("expected balldontlie timezone override, got %s", cfg.Balldontlie.Timezone)
+	}
+	if cfg.Balldontlie.MaxPages != 2 {
+		t.Fatalf("expected balldontlie max pages override, got %d", cfg.Balldontlie.MaxPages)
 	}
 }
 

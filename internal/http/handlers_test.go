@@ -16,9 +16,10 @@ type stubProvider struct {
 	err   error
 }
 
-func (s *stubProvider) FetchGames(ctx context.Context, date string) ([]domain.Game, error) {
+func (s *stubProvider) FetchGames(ctx context.Context, date string, tz string) ([]domain.Game, error) {
 	_ = ctx
 	_ = date
+	_ = tz
 	return s.games, s.err
 }
 

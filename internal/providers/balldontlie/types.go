@@ -4,6 +4,7 @@ const providerName = "balldontlie"
 
 type gamesResponse struct {
 	Data []gameResponse `json:"data"`
+	Meta metaResponse   `json:"meta"`
 }
 
 type gameResponse struct {
@@ -20,4 +21,8 @@ type gameResponse struct {
 type teamResponse struct {
 	ID       int    `json:"id"`
 	FullName string `json:"full_name"`
+}
+
+type metaResponse struct {
+	TotalPages int `json:"total_pages"`
 }

@@ -20,8 +20,9 @@ func New() *Provider {
 }
 
 // FetchGames returns a deterministic set of example games.
-func (p *Provider) FetchGames(ctx context.Context, date string) ([]domain.Game, error) {
+func (p *Provider) FetchGames(ctx context.Context, date string, tz string) ([]domain.Game, error) {
 	_ = ctx
+	_ = tz
 
 	start := p.now().UTC().Truncate(time.Hour)
 	if date != "" {

@@ -28,9 +28,15 @@ func resolveLocation(name string) *time.Location {
 	if name == "" {
 		name = defaultTimezone
 	}
-	loc, err := time.LoadLocation(name)
-	if err != nil {
-		return time.UTC
+	if loc, err := time.LoadLocation(name); err == nil {
+		return loc
 	}
-	return loc
+	return time.UTC
+}
+
+func resolveMaxPages(max int) int {
+	if max <= 0 {
+		return defaultMaxPages
+	}
+	return max
 }

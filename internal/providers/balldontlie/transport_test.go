@@ -53,8 +53,16 @@ func TestResolveLocationDefaultsAndFallback(t *testing.T) {
 		t.Fatalf("expected UTC, got %s", utc.String())
 	}
 
-	fallback := resolveLocation("Not/AZone")
-	if fallback.String() != "UTC" {
+	if fallback := resolveLocation("Not/AZone"); fallback.String() != "UTC" {
 		t.Fatalf("expected fallback to UTC, got %s", fallback.String())
+	}
+}
+
+func TestResolveMaxPages(t *testing.T) {
+	if got := resolveMaxPages(0); got != defaultMaxPages {
+		t.Fatalf("expected default max pages %d, got %d", defaultMaxPages, got)
+	}
+	if got := resolveMaxPages(3); got != 3 {
+		t.Fatalf("expected max pages 3, got %d", got)
 	}
 }

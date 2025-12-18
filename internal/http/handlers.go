@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"nba-games-service/internal/domain"
+	"nba-games-service/internal/logging"
 	"nba-games-service/internal/providers"
 )
 
@@ -42,15 +43,33 @@ func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 	dateParam := r.URL.Query().Get("date")
 	games := h.svc.Games()
 	date := h.now().Format("2006-01-02")
+	logger := logging.FromContext(r.Context(), h.logger)
+	tz := r.URL.Query().Get("tz")
+
+	if dateParam == "" && tz != "" {
+		if loc := providers.ResolveTimezone(tz); loc != nil {
+			date = h.now().In(loc).Format("2006-01-02")
+		}
+	}
 
 	if dateParam != "" && h.provider != nil {
-		fetched, err := h.provider.FetchGames(r.Context(), dateParam)
+		fetched, err := h.provider.FetchGames(r.Context(), dateParam, tz)
 		if err != nil {
-			h.writeError(w, nethttp.StatusBadGateway, "failed to fetch games")
+			if logger != nil {
+				logger.Warn("failed to fetch games", "date", dateParam, "err", err)
+			}
+			h.writeError(w, r, nethttp.StatusBadGateway, "failed to fetch games")
 			return
 		}
 		games = fetched
 		date = dateParam
+		if logger != nil {
+			logger.Info("fetched games", "date", date, "provider", "external", "count", len(games))
+		}
+	} else {
+		if logger != nil {
+			logger.Info("served cached games", "date", date, "provider", "cache", "count", len(games))
+		}
 	}
 
 	payload := domain.TodayResponse{
@@ -65,13 +84,13 @@ func (h *Handler) GameByID(w nethttp.ResponseWriter, r *nethttp.Request) {
 	// Expect path: /games/{id}
 	id := strings.TrimPrefix(r.URL.Path, "/games/")
 	if id == "" || id == "games" {
-		h.writeError(w, nethttp.StatusBadRequest, "missing game id")
+		h.writeError(w, r, nethttp.StatusBadRequest, "missing game id")
 		return
 	}
 
 	game, ok := h.svc.GameByID(id)
 	if !ok {
-		h.writeError(w, nethttp.StatusNotFound, "game not found")
+		h.writeError(w, r, nethttp.StatusNotFound, "game not found")
 		return
 	}
 
@@ -82,10 +101,15 @@ func (h *Handler) writeJSON(w nethttp.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(payload); err != nil && h.logger != nil {
-		h.logger.Error("failed to encode response", "error", err)
+		h.logger.Error("failed to encode response", "err", err)
 	}
 }
 
-func (h *Handler) writeError(w nethttp.ResponseWriter, status int, message string) {
-	h.writeJSON(w, status, map[string]string{"error": message})
+func (h *Handler) writeError(w nethttp.ResponseWriter, r *nethttp.Request, status int, message string) {
+	reqID := requestIDFromContext(r.Context())
+	body := map[string]string{"error": message}
+	if reqID != "" {
+		body["requestId"] = reqID
+	}
+	h.writeJSON(w, status, body)
 }
