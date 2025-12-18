@@ -19,12 +19,13 @@ go mod tidy
 ```
 
 ## Configuration
-Environment variables (optional; defaults shown). See `.env.example`:
+ Environment variables (optional; defaults shown). See `.env.example`:
 - `PORT` (default `4000`)
 - `POLL_INTERVAL` (default `30s`)
 - `PROVIDER` (default `fixture`; `balldontlie` available)
-- `BALDONTLIE_BASE_URL` (default `https://www.balldontlie.io/api/v1`)
+- `BALDONTLIE_BASE_URL` (default `https://api.balldontlie.io/v1`)
 - `BALDONTLIE_API_KEY` (optional; use if your balldontlie instance requires auth)
+- `BALDONTLIE_TIMEZONE` (default `America/New_York`; controls which “today” date is requested from balldontlie)
 
 ## Run
 Using Make:
@@ -48,6 +49,7 @@ curl http://localhost:4000/games/fixture-1
 ## Endpoints
 - `GET /health` → `{"status":"ok"}`
 - `GET /games/today` → `{ "date": "YYYY-MM-DD", "games": [...] }`
+- `GET /games?date=YYYY-MM-DD` → games for a specific date (defaults to “today” if omitted; uses server timezone config)
 - `GET /games/{id}` → single game or 404
 
 When using the fixture provider, `games/today` returns two deterministic sample games.
@@ -97,6 +99,8 @@ An `.envrc` is included that runs `dotenv .env`. Keep secrets out of git; use `.
 
 ## Portfolio Notes
 This repo is part of a broader portfolio. The service respects the shared data model and can be swapped from the fixture provider to a real upstream client without changing the public contract. Tests cover core behavior and edge cases across the stack. The Postman collection and VS Code tasks are included to streamline demonstration and review. No external network calls are required for the fixture path.
+
+For the balldontlie provider, “today” is derived from a configurable server timezone (default `America/New_York`). If you later want per-user local “today,” the API would need to accept a date/timezone parameter and the UI would pass it through.
 
 ## Status
 - Done: baseline server wiring, fixture provider, poller with warm-start, in-memory store, HTTP endpoints (`/health`, `/games/today`, `/games/{id}`), provider selection, balldontlie client + mapper, VS Code tasks, Postman collection, tests across handlers/poller/store/server/config.

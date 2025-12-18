@@ -17,8 +17,9 @@ type stubProvider struct {
 	notify chan struct{}
 }
 
-func (s *stubProvider) FetchGames(ctx context.Context) ([]domain.Game, error) {
+func (s *stubProvider) FetchGames(ctx context.Context, date string) ([]domain.Game, error) {
 	_ = ctx
+	_ = date
 	if s.notify != nil {
 		select {
 		case <-s.notify:

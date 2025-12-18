@@ -11,7 +11,7 @@ import (
 )
 
 func TestFetchGamesHitsAPIAndMapsResponse(t *testing.T) {
-	fixed := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+	fixed := time.Date(2024, 1, 2, 3, 0, 0, 0, time.UTC) // should still yield 2024-01-01 in America/New_York
 	var capturedAuth string
 	var capturedQuery string
 
@@ -47,10 +47,11 @@ func TestFetchGamesHitsAPIAndMapsResponse(t *testing.T) {
 		BaseURL:    "http://example.com",
 		APIKey:     "secret",
 		HTTPClient: &http.Client{Transport: rt},
+		Timezone:   "America/New_York",
 	})
 	client.now = func() time.Time { return fixed }
 
-	games, err := client.FetchGames(context.Background())
+	games, err := client.FetchGames(context.Background(), "")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -65,8 +66,8 @@ func TestFetchGamesHitsAPIAndMapsResponse(t *testing.T) {
 	if q.Get("per_page") != "100" {
 		t.Fatalf("expected per_page=100, got %s", q.Get("per_page"))
 	}
-	if q.Get("dates[]") != "2024-01-02" {
-		t.Fatalf("expected date=2024-01-02, got %s", q.Get("dates[]"))
+	if q.Get("dates[]") != "2024-01-01" {
+		t.Fatalf("expected date=2024-01-01 in NY, got %s", q.Get("dates[]"))
 	}
 	if len(games) != 1 {
 		t.Fatalf("expected 1 game, got %d", len(games))
@@ -103,7 +104,7 @@ func TestFetchGamesHandlesNon200(t *testing.T) {
 	})
 	client.now = func() time.Time { return time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC) }
 
-	if _, err := client.FetchGames(context.Background()); err == nil {
+	if _, err := client.FetchGames(context.Background(), ""); err == nil {
 		t.Fatal("expected error on non-200 response")
 	}
 }
@@ -124,7 +125,7 @@ func TestFetchGamesHandlesDecodeError(t *testing.T) {
 	})
 	client.now = func() time.Time { return time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC) }
 
-	if _, err := client.FetchGames(context.Background()); err == nil {
+	if _, err := client.FetchGames(context.Background(), ""); err == nil {
 		t.Fatal("expected decode error")
 	}
 }

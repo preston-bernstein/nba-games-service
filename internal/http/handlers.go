@@ -8,23 +8,26 @@ import (
 	"time"
 
 	"nba-games-service/internal/domain"
+	"nba-games-service/internal/providers"
 )
 
 type nowFunc func() time.Time
 
 // Handler wires HTTP routes to the domain service.
 type Handler struct {
-	svc    *domain.Service
-	logger *slog.Logger
-	now    nowFunc
+	svc      *domain.Service
+	logger   *slog.Logger
+	now      nowFunc
+	provider providers.GameProvider
 }
 
 // NewHandler constructs a Handler with defaults.
-func NewHandler(svc *domain.Service, logger *slog.Logger) *Handler {
+func NewHandler(svc *domain.Service, logger *slog.Logger, provider providers.GameProvider) *Handler {
 	return &Handler{
-		svc:    svc,
-		logger: logger,
-		now:    time.Now,
+		svc:      svc,
+		logger:   logger,
+		now:      time.Now,
+		provider: provider,
 	}
 }
 
@@ -36,9 +39,22 @@ func (h *Handler) Health(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 // GamesToday returns the current snapshot of games.
 func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
+	dateParam := r.URL.Query().Get("date")
 	games := h.svc.Games()
+	date := h.now().Format("2006-01-02")
+
+	if dateParam != "" && h.provider != nil {
+		fetched, err := h.provider.FetchGames(r.Context(), dateParam)
+		if err != nil {
+			h.writeError(w, nethttp.StatusBadGateway, "failed to fetch games")
+			return
+		}
+		games = fetched
+		date = dateParam
+	}
+
 	payload := domain.TodayResponse{
-		Date:  h.now().Format("2006-01-02"),
+		Date:  date,
 		Games: games,
 	}
 	h.writeJSON(w, nethttp.StatusOK, payload)

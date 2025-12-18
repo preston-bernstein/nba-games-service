@@ -23,6 +23,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Balldontlie.APIKey != "" {
 		t.Fatalf("expected empty balldontlie api key by default, got %s", cfg.Balldontlie.APIKey)
 	}
+	if cfg.Balldontlie.Timezone != defaultBdlTimezone {
+		t.Fatalf("expected default balldontlie timezone %s, got %s", defaultBdlTimezone, cfg.Balldontlie.Timezone)
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
@@ -31,6 +34,7 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv(envProvider, "balldontlie")
 	t.Setenv(envBdlBaseURL, "http://example.com/api")
 	t.Setenv(envBdlAPIKey, "secret-key")
+	t.Setenv(envBdlTimezone, "UTC")
 
 	cfg := Load()
 
@@ -48,6 +52,9 @@ func TestLoadOverrides(t *testing.T) {
 	}
 	if cfg.Balldontlie.APIKey != "secret-key" {
 		t.Fatalf("expected balldontlie api key override, got %s", cfg.Balldontlie.APIKey)
+	}
+	if cfg.Balldontlie.Timezone != "UTC" {
+		t.Fatalf("expected balldontlie timezone override, got %s", cfg.Balldontlie.Timezone)
 	}
 }
 

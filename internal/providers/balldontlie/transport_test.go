@@ -41,3 +41,20 @@ func TestResolveHTTPClientUsesProvidedClient(t *testing.T) {
 		t.Fatalf("expected provided client to be used")
 	}
 }
+
+func TestResolveLocationDefaultsAndFallback(t *testing.T) {
+	loc := resolveLocation("")
+	if loc.String() != defaultTimezone {
+		t.Fatalf("expected default timezone %s, got %s", defaultTimezone, loc.String())
+	}
+
+	utc := resolveLocation("UTC")
+	if utc.String() != "UTC" {
+		t.Fatalf("expected UTC, got %s", utc.String())
+	}
+
+	fallback := resolveLocation("Not/AZone")
+	if fallback.String() != "UTC" {
+		t.Fatalf("expected fallback to UTC, got %s", fallback.String())
+	}
+}

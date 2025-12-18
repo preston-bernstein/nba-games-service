@@ -18,6 +18,7 @@ type Config struct {
 	BaseURL    string
 	APIKey     string
 	HTTPClient *http.Client
+	Timezone   string
 }
 
 // Client fetches games from the balldontlie API and maps them to domain models.
@@ -26,6 +27,7 @@ type Client struct {
 	apiKey     string
 	httpClient httpDoer
 	now        func() time.Time
+	loc        *time.Location
 }
 
 // NewClient constructs a balldontlie client with the provided configuration.
@@ -35,12 +37,13 @@ func NewClient(cfg Config) *Client {
 		apiKey:     cfg.APIKey,
 		httpClient: resolveHTTPClient(cfg.HTTPClient),
 		now:        time.Now,
+		loc:        resolveLocation(cfg.Timezone),
 	}
 }
 
 // FetchGames retrieves today's games from balldontlie.
-func (c *Client) FetchGames(ctx context.Context) ([]domain.Game, error) {
-	req, err := c.buildRequest(ctx)
+func (c *Client) FetchGames(ctx context.Context, date string) ([]domain.Game, error) {
+	req, err := c.buildRequest(ctx, date)
 	if err != nil {
 		return nil, err
 	}
@@ -69,14 +72,14 @@ func (c *Client) FetchGames(ctx context.Context) ([]domain.Game, error) {
 	return games, nil
 }
 
-func (c *Client) buildRequest(ctx context.Context) (*http.Request, error) {
+func (c *Client) buildRequest(ctx context.Context, date string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/games", nil)
 	if err != nil {
 		return nil, err
 	}
 
 	q := req.URL.Query()
-	q.Set("dates[]", c.now().UTC().Format("2006-01-02"))
+	q.Set("dates[]", c.resolveDate(date))
 	q.Set("per_page", strconv.Itoa(defaultPerPage))
 	req.URL.RawQuery = q.Encode()
 
@@ -85,4 +88,13 @@ func (c *Client) buildRequest(ctx context.Context) (*http.Request, error) {
 	}
 
 	return req, nil
+}
+
+func (c *Client) resolveDate(date string) string {
+	if date != "" {
+		if _, err := time.Parse("2006-01-02", date); err == nil {
+			return date
+		}
+	}
+	return c.now().In(c.loc).Format("2006-01-02")
 }

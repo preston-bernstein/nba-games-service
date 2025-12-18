@@ -82,7 +82,7 @@ func (p *Poller) Stop(ctx context.Context) error {
 }
 
 func (p *Poller) fetchOnce(ctx context.Context) {
-	games, err := p.provider.FetchGames(ctx)
+	games, err := p.provider.FetchGames(ctx, "")
 	if err != nil {
 		p.logError("poller fetch failed", err)
 		return
