@@ -17,12 +17,20 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Provider != defaultProvider {
 		t.Fatalf("expected default provider %s, got %s", defaultProvider, cfg.Provider)
 	}
+	if cfg.Balldontlie.BaseURL != defaultBdlBaseURL {
+		t.Fatalf("expected default balldontlie base url %s, got %s", defaultBdlBaseURL, cfg.Balldontlie.BaseURL)
+	}
+	if cfg.Balldontlie.APIKey != "" {
+		t.Fatalf("expected empty balldontlie api key by default, got %s", cfg.Balldontlie.APIKey)
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
-	t.Setenv("PORT", "5000")
-	t.Setenv("POLL_INTERVAL", "45s")
-	t.Setenv("PROVIDER", "balldontlie")
+	t.Setenv(envPort, "5000")
+	t.Setenv(envPollInterval, "45s")
+	t.Setenv(envProvider, "balldontlie")
+	t.Setenv(envBdlBaseURL, "http://example.com/api")
+	t.Setenv(envBdlAPIKey, "secret-key")
 
 	cfg := Load()
 
@@ -35,10 +43,16 @@ func TestLoadOverrides(t *testing.T) {
 	if cfg.Provider != "balldontlie" {
 		t.Fatalf("expected provider balldontlie, got %s", cfg.Provider)
 	}
+	if cfg.Balldontlie.BaseURL != "http://example.com/api" {
+		t.Fatalf("expected balldontlie base url override, got %s", cfg.Balldontlie.BaseURL)
+	}
+	if cfg.Balldontlie.APIKey != "secret-key" {
+		t.Fatalf("expected balldontlie api key override, got %s", cfg.Balldontlie.APIKey)
+	}
 }
 
 func TestLoadInvalidDurationFallsBack(t *testing.T) {
-	t.Setenv("POLL_INTERVAL", "not-a-duration")
+	t.Setenv(envPollInterval, "not-a-duration")
 
 	cfg := Load()
 
@@ -48,7 +62,7 @@ func TestLoadInvalidDurationFallsBack(t *testing.T) {
 }
 
 func TestLoadNonPositiveDurationFallsBack(t *testing.T) {
-	t.Setenv("POLL_INTERVAL", "0s")
+	t.Setenv(envPollInterval, "0s")
 
 	cfg := Load()
 
