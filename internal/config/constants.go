@@ -10,6 +10,7 @@ const (
 	envMetricsOn    = "METRICS_ENABLED"
 	envOtelEndpoint = "OTEL_EXPORTER_OTLP_ENDPOINT"
 	envOtelService  = "OTEL_SERVICE_NAME"
+	envOtelInsecure = "OTEL_EXPORTER_OTLP_INSECURE"
 
 	defaultPort         = "4000"
 	defaultPollInterval = 30 * Duration(time.Second)

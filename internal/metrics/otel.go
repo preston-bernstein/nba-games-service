@@ -22,6 +22,7 @@ type TelemetryConfig struct {
 	Port         string
 	ServiceName  string
 	OtlpEndpoint string
+	OtlpInsecure bool
 }
 
 // Setup configures OpenTelemetry metrics with a Prometheus exporter and optional OTLP exporter.
@@ -35,19 +36,19 @@ func Setup(ctx context.Context, cfg TelemetryConfig) (*Recorder, http.Handler, f
 		cfg.ServiceName = "nba-games-service"
 	}
 
-	reg := prometheus.NewRegistry()
-	promExp, err := promexporter.New(promexporter.WithRegisterer(reg))
+	promReader, promHandler, err := prometheusComponents()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	opts := []sdkmetric.Option{sdkmetric.WithReader(promExp)}
+	opts := []sdkmetric.Option{sdkmetric.WithReader(promReader)}
 
 	if cfg.OtlpEndpoint != "" {
-		otlpExp, err := otlpmetrichttp.New(ctx,
-			otlpmetrichttp.WithEndpoint(cfg.OtlpEndpoint),
-			otlpmetrichttp.WithInsecure(),
-		)
+		otlpOpts := []otlpmetrichttp.Option{otlpmetrichttp.WithEndpoint(cfg.OtlpEndpoint)}
+		if cfg.OtlpInsecure {
+			otlpOpts = append(otlpOpts, otlpmetrichttp.WithInsecure())
+		}
+		otlpExp, err := otlpmetrichttp.New(ctx, otlpOpts...)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -75,7 +76,7 @@ func Setup(ctx context.Context, cfg TelemetryConfig) (*Recorder, http.Handler, f
 		return provider.Shutdown(c)
 	}
 
-	return rec, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), shutdown, nil
+	return rec, promHandler, shutdown, nil
 }
 
 type otelInstruments struct {
@@ -91,6 +92,15 @@ type otelInstruments struct {
 	pollerCycles      metric.Int64Counter
 	pollerErrors      metric.Int64Counter
 	pollerLatencyMs   metric.Float64Histogram
+}
+
+func prometheusComponents() (sdkmetric.Reader, http.Handler, error) {
+	reg := prometheus.NewRegistry()
+	promExp, err := promexporter.New(promexporter.WithRegisterer(reg))
+	if err != nil {
+		return nil, nil, err
+	}
+	return promExp, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), nil
 }
 
 func newOtelInstruments(provider *sdkmetric.MeterProvider) (*otelInstruments, error) {

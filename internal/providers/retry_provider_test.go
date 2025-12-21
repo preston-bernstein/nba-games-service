@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -116,6 +117,7 @@ func TestRetryingProviderRecordsRateLimitMetrics(t *testing.T) {
 func TestRetryingProviderDelaySelection(t *testing.T) {
 	rec := metrics.NewRecorder()
 	rp := NewRetryingProvider(&rateLimitThenSuccessProvider{}, nil, rec, "rl", 2, time.Millisecond).(*retryingProvider)
+	rp.rng = rand.New(rand.NewSource(1))
 	rp.backoffFn = func(attempt int) time.Duration {
 		_ = attempt
 		return 50 * time.Millisecond

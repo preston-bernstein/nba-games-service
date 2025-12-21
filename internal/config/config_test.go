@@ -17,6 +17,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv(envMetricsOn, "")
 	t.Setenv(envOtelEndpoint, "")
 	t.Setenv(envOtelService, "")
+	t.Setenv(envOtelInsecure, "")
 
 	cfg := Load()
 
@@ -53,6 +54,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Metrics.ServiceName != "nba-games-service" {
 		t.Fatalf("expected default service name nba-games-service, got %s", cfg.Metrics.ServiceName)
 	}
+	if !cfg.Metrics.OtlpInsecure {
+		t.Fatalf("expected otlp insecure default true")
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
@@ -67,6 +71,7 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv(envMetricsPort, "9999")
 	t.Setenv(envOtelEndpoint, "http://otel-collector:4318")
 	t.Setenv(envOtelService, "custom-service")
+	t.Setenv(envOtelInsecure, "false")
 
 	cfg := Load()
 
@@ -102,6 +107,9 @@ func TestLoadOverrides(t *testing.T) {
 	}
 	if cfg.Metrics.ServiceName != "custom-service" {
 		t.Fatalf("expected service name override, got %s", cfg.Metrics.ServiceName)
+	}
+	if cfg.Metrics.OtlpInsecure {
+		t.Fatalf("expected otlp insecure false override")
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"regexp"
 	"time"
 )
 
@@ -19,6 +20,15 @@ func generateRequestID() string {
 
 func fallbackRequestID() string {
 	return hex.EncodeToString([]byte(time.Now().Format("20060102150405.000000000")))
+}
+
+var requestIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
+func sanitizeRequestID(incoming string) string {
+	if incoming != "" && requestIDPattern.MatchString(incoming) {
+		return incoming
+	}
+	return generateRequestID()
 }
 
 func requestIDFromContext(ctx context.Context) string {

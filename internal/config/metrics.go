@@ -6,6 +6,7 @@ type MetricsConfig struct {
 	Port         string
 	OtlpEndpoint string
 	ServiceName  string
+	OtlpInsecure bool
 }
 
 func loadMetrics() MetricsConfig {
@@ -14,5 +15,6 @@ func loadMetrics() MetricsConfig {
 		Port:         envOrDefault(envMetricsPort, defaultMetricsPort),
 		OtlpEndpoint: envOrDefault(envOtelEndpoint, ""),
 		ServiceName:  envOrDefault(envOtelService, "nba-games-service"),
+		OtlpInsecure: boolEnvOrDefault(envOtelInsecure, true),
 	}
 }

@@ -3,6 +3,7 @@ package http
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"nba-games-service/internal/logging"
@@ -17,10 +18,7 @@ func LoggingMiddleware(baseLogger *slog.Logger, recorder *metrics.Recorder, next
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		reqID := r.Header.Get("X-Request-ID")
-		if reqID == "" {
-			reqID = generateRequestID()
-		}
+		reqID := sanitizeRequestID(r.Header.Get("X-Request-ID"))
 		w.Header().Set("X-Request-ID", reqID)
 
 		clientIP := r.RemoteAddr
@@ -45,7 +43,7 @@ func LoggingMiddleware(baseLogger *slog.Logger, recorder *metrics.Recorder, next
 
 		duration := time.Since(start)
 		if recorder != nil {
-			recorder.RecordHTTPRequest(r.Method, r.URL.Path, ww.status, duration)
+			recorder.RecordHTTPRequest(r.Method, normalizePath(r.URL.Path), ww.status, duration)
 		}
 
 		logger.Info("request complete",
@@ -63,4 +61,22 @@ func (w *responseWriter) WriteHeader(status int) {
 type responseWriter struct {
 	http.ResponseWriter
 	status int
+}
+
+func normalizePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	path = strings.Split(path, "?")[0]
+	switch path {
+	case "/games", "/games/today":
+		return "/games/today"
+	case "/health":
+		return "/health"
+	default:
+		if strings.HasPrefix(path, "/games/") {
+			return "/games/:id"
+		}
+		return path
+	}
 }

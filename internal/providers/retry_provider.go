@@ -33,6 +33,11 @@ type retryingProvider struct {
 // NewRetryingProvider wraps the given provider with retries. If maxAttempts/backoff are <= 0, defaults are used.
 // providerName is optional; when empty it falls back to the provider type.
 func NewRetryingProvider(inner GameProvider, logger *slog.Logger, metricsRecorder *metrics.Recorder, providerName string, maxAttempts int, backoff time.Duration) GameProvider {
+	return NewRetryingProviderWithRNG(inner, logger, metricsRecorder, providerName, nil, maxAttempts, backoff)
+}
+
+// NewRetryingProviderWithRNG is identical to NewRetryingProvider but allows injecting a rand.Rand for deterministic tests.
+func NewRetryingProviderWithRNG(inner GameProvider, logger *slog.Logger, metricsRecorder *metrics.Recorder, providerName string, rng *rand.Rand, maxAttempts int, backoff time.Duration) GameProvider {
 	if maxAttempts <= 0 {
 		maxAttempts = defaultRetryAttempts
 	}
@@ -48,6 +53,10 @@ func NewRetryingProvider(inner GameProvider, logger *slog.Logger, metricsRecorde
 		}
 	}
 
+	if rng == nil {
+		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+
 	return &retryingProvider{
 		inner:        inner,
 		logger:       logger,
@@ -57,7 +66,7 @@ func NewRetryingProvider(inner GameProvider, logger *slog.Logger, metricsRecorde
 		backoffFn: func(attempt int) time.Duration {
 			return time.Duration(attempt) * backoff
 		},
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng: rng,
 	}
 }
 
