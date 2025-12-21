@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -40,4 +41,18 @@ func intEnvOrDefault(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return val
+}
+
+func boolEnvOrDefault(key string, defaultValue bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	if raw == "1" || strings.EqualFold(raw, "true") || strings.EqualFold(raw, "yes") {
+		return true
+	}
+	if raw == "0" || strings.EqualFold(raw, "false") || strings.EqualFold(raw, "no") {
+		return false
+	}
+	return defaultValue
 }

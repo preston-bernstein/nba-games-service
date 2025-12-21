@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"nba-games-service/internal/logging"
+	"nba-games-service/internal/metrics"
 )
 
-// LoggingMiddleware wraps the handler with request logging and request ID support.
-func LoggingMiddleware(baseLogger *slog.Logger, next http.Handler) http.Handler {
+// LoggingMiddleware wraps the handler with request logging, request ID support, and metrics.
+func LoggingMiddleware(baseLogger *slog.Logger, recorder *metrics.Recorder, next http.Handler) http.Handler {
 	if baseLogger == nil {
 		baseLogger = slog.Default()
 	}
@@ -42,9 +43,14 @@ func LoggingMiddleware(baseLogger *slog.Logger, next http.Handler) http.Handler 
 
 		next.ServeHTTP(ww, r)
 
+		duration := time.Since(start)
+		if recorder != nil {
+			recorder.RecordHTTPRequest(r.Method, r.URL.Path, ww.status, duration)
+		}
+
 		logger.Info("request complete",
 			slog.Int("status", ww.status),
-			slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+			slog.Int64("duration_ms", duration.Milliseconds()),
 		)
 	})
 }

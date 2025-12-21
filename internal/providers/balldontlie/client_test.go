@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"nba-games-service/internal/providers"
 )
 
 func TestFetchGamesHitsAPIAndMapsResponse(t *testing.T) {
@@ -174,6 +176,46 @@ func TestFetchGamesHandlesDecodeError(t *testing.T) {
 	}
 }
 
+func TestFetchGamesHandlesRateLimit(t *testing.T) {
+	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		_ = req
+		return &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Body:       io.NopCloser(strings.NewReader("slow down")),
+			Header: http.Header{
+				"Retry-After":             []string{"10"},
+				"X-Rate-Limit-Remaining":  []string{"0"},
+				"X-Another-Rate-Limit-Ty": []string{"unused"},
+			},
+		}, nil
+	})
+
+	client := NewClient(Config{
+		BaseURL:    "http://example.com",
+		HTTPClient: &http.Client{Transport: rt},
+	})
+	client.now = func() time.Time { return time.Unix(0, 0) }
+
+	_, err := client.FetchGames(context.Background(), "", "")
+	if err == nil {
+		t.Fatal("expected rate limit error")
+	}
+
+	rlErr, ok := err.(*providers.RateLimitError)
+	if !ok {
+		t.Fatalf("expected RateLimitError, got %T", err)
+	}
+	if rlErr.RetryAfter != 10*time.Second {
+		t.Fatalf("expected retry-after 10s, got %s", rlErr.RetryAfter)
+	}
+	if rlErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("unexpected status code %d", rlErr.StatusCode)
+	}
+	if rlErr.Remaining != "0" {
+		t.Fatalf("expected remaining=0, got %s", rlErr.Remaining)
+	}
+}
+
 func TestFetchGamesRespectsMaxPagesCap(t *testing.T) {
 	calls := 0
 	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -233,4 +275,108 @@ type roundTripperFunc func(req *http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name     string
+		raw      string
+		expected time.Duration
+		validate func(time.Duration) bool
+	}{
+		{
+			name:     "seconds",
+			raw:      "15",
+			expected: 15 * time.Second,
+		},
+		{
+			name: "http_date",
+			raw:  now.Add(90 * time.Second).UTC().Format(http.TimeFormat),
+			validate: func(d time.Duration) bool {
+				return d >= 80*time.Second && d <= 95*time.Second
+			},
+		},
+		{
+			name:     "empty",
+			raw:      "",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseRetryAfter(tt.raw, now)
+			if tt.validate != nil {
+				if !tt.validate(got) {
+					t.Fatalf("validation failed for %s: %s", tt.name, got)
+				}
+				return
+			}
+			if got != tt.expected {
+				t.Fatalf("expected %s, got %s", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestRateLimitDetails(t *testing.T) {
+	now := time.Unix(0, 0)
+	body := []byte("slow down")
+	tests := []struct {
+		name        string
+		status      int
+		headers     http.Header
+		expectedRL  bool
+		expectedRA  time.Duration
+		expectedRem string
+	}{
+		{
+			name:        "429 with retry after",
+			status:      http.StatusTooManyRequests,
+			headers:     http.Header{"Retry-After": []string{"5"}, "X-Rate-Limit-Remaining": []string{"0"}},
+			expectedRL:  true,
+			expectedRA:  5 * time.Second,
+			expectedRem: "0",
+		},
+		{
+			name:        "503 treated as rate limited",
+			status:      http.StatusServiceUnavailable,
+			headers:     http.Header{},
+			expectedRL:  true,
+			expectedRA:  0,
+			expectedRem: "",
+		},
+		{
+			name:        "non rate limit status",
+			status:      http.StatusBadGateway,
+			headers:     http.Header{},
+			expectedRL:  false,
+			expectedRA:  0,
+			expectedRem: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := &http.Response{
+				StatusCode: tt.status,
+				Header:     tt.headers,
+			}
+			retryAfter, remaining, rateLimited, msg := rateLimitDetails(resp, body, now)
+
+			if rateLimited != tt.expectedRL {
+				t.Fatalf("expected rateLimited=%v, got %v", tt.expectedRL, rateLimited)
+			}
+			if retryAfter != tt.expectedRA {
+				t.Fatalf("expected retryAfter %s, got %s", tt.expectedRA, retryAfter)
+			}
+			if remaining != tt.expectedRem {
+				t.Fatalf("expected remaining %s, got %s", tt.expectedRem, remaining)
+			}
+			if msg == "" {
+				t.Fatalf("expected message to be populated")
+			}
+		})
+	}
 }

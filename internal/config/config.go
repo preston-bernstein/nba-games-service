@@ -6,6 +6,7 @@ type Config struct {
 	PollInterval Duration
 	Provider     string
 	Balldontlie  BalldontlieConfig
+	Metrics      MetricsConfig
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -15,5 +16,6 @@ func Load() Config {
 		PollInterval: durationEnvOrDefault(envPollInterval, defaultPollInterval),
 		Provider:     envOrDefault(envProvider, defaultProvider),
 		Balldontlie:  loadBalldontlie(),
+		Metrics:      loadMetrics(),
 	}
 }

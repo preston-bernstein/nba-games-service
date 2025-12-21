@@ -6,6 +6,18 @@ import (
 )
 
 func TestLoadDefaults(t *testing.T) {
+	t.Setenv(envPort, "")
+	t.Setenv(envPollInterval, "")
+	t.Setenv(envProvider, "")
+	t.Setenv(envBdlBaseURL, "")
+	t.Setenv(envBdlAPIKey, "")
+	t.Setenv(envBdlTimezone, "")
+	t.Setenv(envBdlMaxPages, "")
+	t.Setenv(envMetricsPort, "")
+	t.Setenv(envMetricsOn, "")
+	t.Setenv(envOtelEndpoint, "")
+	t.Setenv(envOtelService, "")
+
 	cfg := Load()
 
 	if cfg.Port != defaultPort {
@@ -29,6 +41,18 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Balldontlie.MaxPages != defaultBdlMaxPages {
 		t.Fatalf("expected default balldontlie max pages %d, got %d", defaultBdlMaxPages, cfg.Balldontlie.MaxPages)
 	}
+	if !cfg.Metrics.Enabled {
+		t.Fatalf("expected metrics enabled by default")
+	}
+	if cfg.Metrics.Port != defaultMetricsPort {
+		t.Fatalf("expected default metrics port %s, got %s", defaultMetricsPort, cfg.Metrics.Port)
+	}
+	if cfg.Metrics.OtlpEndpoint != "" {
+		t.Fatalf("expected empty otlp endpoint by default, got %s", cfg.Metrics.OtlpEndpoint)
+	}
+	if cfg.Metrics.ServiceName != "nba-games-service" {
+		t.Fatalf("expected default service name nba-games-service, got %s", cfg.Metrics.ServiceName)
+	}
 }
 
 func TestLoadOverrides(t *testing.T) {
@@ -39,6 +63,10 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv(envBdlAPIKey, "secret-key")
 	t.Setenv(envBdlTimezone, "UTC")
 	t.Setenv(envBdlMaxPages, "2")
+	t.Setenv(envMetricsOn, "false")
+	t.Setenv(envMetricsPort, "9999")
+	t.Setenv(envOtelEndpoint, "http://otel-collector:4318")
+	t.Setenv(envOtelService, "custom-service")
 
 	cfg := Load()
 
@@ -62,6 +90,18 @@ func TestLoadOverrides(t *testing.T) {
 	}
 	if cfg.Balldontlie.MaxPages != 2 {
 		t.Fatalf("expected balldontlie max pages override, got %d", cfg.Balldontlie.MaxPages)
+	}
+	if cfg.Metrics.Enabled {
+		t.Fatalf("expected metrics disabled via env override")
+	}
+	if cfg.Metrics.Port != "9999" {
+		t.Fatalf("expected metrics port override, got %s", cfg.Metrics.Port)
+	}
+	if cfg.Metrics.OtlpEndpoint != "http://otel-collector:4318" {
+		t.Fatalf("expected otlp endpoint override, got %s", cfg.Metrics.OtlpEndpoint)
+	}
+	if cfg.Metrics.ServiceName != "custom-service" {
+		t.Fatalf("expected service name override, got %s", cfg.Metrics.ServiceName)
 	}
 }
 

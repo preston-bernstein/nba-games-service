@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"nba-games-service/internal/domain"
+	"nba-games-service/internal/providers"
 )
 
 // Config controls how the balldontlie client reaches the upstream API.
@@ -70,7 +71,7 @@ func (c *Client) FetchGames(ctx context.Context, date string, tz string) ([]doma
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			resp.Body.Close()
-			return nil, fmt.Errorf("balldontlie: unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+			return nil, classifyErrorResponse(resp, body, c.now())
 		}
 
 		var payload gamesResponse
@@ -129,4 +130,50 @@ func (c *Client) resolveDate(date string, loc *time.Location) string {
 		}
 	}
 	return c.now().In(loc).Format("2006-01-02")
+}
+
+func classifyErrorResponse(resp *http.Response, body []byte, now time.Time) error {
+	retryAfter, remaining, rateLimited, msg := rateLimitDetails(resp, body, now)
+	if rateLimited {
+		return &providers.RateLimitError{
+			Provider:   "balldontlie",
+			StatusCode: resp.StatusCode,
+			RetryAfter: retryAfter,
+			Remaining:  remaining,
+			Message:    msg,
+		}
+	}
+	return fmt.Errorf(msg)
+}
+
+// parseRetryAfter interprets Retry-After header values as either seconds or HTTP dates.
+func parseRetryAfter(raw string, now time.Time) time.Duration {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+
+	if seconds, err := strconv.Atoi(raw); err == nil && seconds >= 0 {
+		return time.Duration(seconds) * time.Second
+	}
+
+	if ts, err := http.ParseTime(raw); err == nil {
+		if ts.After(now) {
+			return ts.Sub(now)
+		}
+	}
+
+	return 0
+}
+
+func rateLimitDetails(resp *http.Response, body []byte, now time.Time) (time.Duration, string, bool, string) {
+	msg := fmt.Sprintf("balldontlie: unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode != http.StatusServiceUnavailable {
+		return 0, "", false, msg
+	}
+
+	retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"), now)
+	remaining := resp.Header.Get("X-Rate-Limit-Remaining")
+
+	return retryAfter, remaining, true, msg
 }
