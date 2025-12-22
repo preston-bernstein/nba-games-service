@@ -12,6 +12,7 @@ import (
 
 	"nba-games-service/internal/domain"
 	"nba-games-service/internal/logging"
+	"nba-games-service/internal/poller"
 	"nba-games-service/internal/providers"
 )
 
@@ -23,15 +24,17 @@ type Handler struct {
 	logger   *slog.Logger
 	now      nowFunc
 	provider providers.GameProvider
+	statusFn func() poller.Status
 }
 
 // NewHandler constructs a Handler with defaults.
-func NewHandler(svc *domain.Service, logger *slog.Logger, provider providers.GameProvider) *Handler {
+func NewHandler(svc *domain.Service, logger *slog.Logger, provider providers.GameProvider, statusFn func() poller.Status) *Handler {
 	return &Handler{
 		svc:      svc,
 		logger:   logger,
 		now:      time.Now,
 		provider: provider,
+		statusFn: statusFn,
 	}
 }
 
@@ -43,6 +46,23 @@ func (h *Handler) Health(w nethttp.ResponseWriter, r *nethttp.Request) {
 	}
 	resp := map[string]string{"status": "ok"}
 	h.writeJSON(w, nethttp.StatusOK, resp)
+}
+
+// Ready reports readiness for traffic (e.g., for Kubernetes probes).
+func (h *Handler) Ready(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if h.statusFn == nil {
+		h.writeJSON(w, nethttp.StatusOK, map[string]string{"status": "ready"})
+		return
+	}
+	if h.statusFn().IsReady() {
+		h.writeJSON(w, nethttp.StatusOK, map[string]string{"status": "ready"})
+		return
+	}
+	msg := h.statusFn().LastError
+	if msg == "" {
+		msg = "not ready"
+	}
+	h.writeError(w, r, nethttp.StatusServiceUnavailable, msg)
 }
 
 // GamesToday returns the current snapshot of games.

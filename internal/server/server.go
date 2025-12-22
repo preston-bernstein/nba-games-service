@@ -73,8 +73,8 @@ func newServerWithMetrics(cfg config.Config, logger *slog.Logger, provider provi
 
 	provider = providers.NewRetryingProvider(provider, logger, recorder, providerName, 0, 0)
 	domainService := buildDomainService()
-	httpSrv := buildHTTPServer(cfg, domainService, logger, provider, recorder)
 	plr := poller.New(provider, domainService, logger, recorder, cfg.PollInterval)
+	httpSrv := buildHTTPServer(cfg, domainService, logger, provider, recorder, plr)
 
 	return &Server{
 		cfg:           cfg,
@@ -104,8 +104,13 @@ func buildDomainService() *domain.Service {
 	return domain.NewService(memoryStore)
 }
 
-func buildHTTPServer(cfg config.Config, svc *domain.Service, logger *slog.Logger, provider providers.GameProvider, recorder *metrics.Recorder) httpServer {
-	handler := httpserver.NewHandler(svc, logger, provider)
+func buildHTTPServer(cfg config.Config, svc *domain.Service, logger *slog.Logger, provider providers.GameProvider, recorder *metrics.Recorder, plr Poller) httpServer {
+	var statusFn func() poller.Status
+	if plr != nil {
+		statusFn = plr.Status
+	}
+
+	handler := httpserver.NewHandler(svc, logger, provider, statusFn)
 	router := httpserver.NewRouter(handler)
 	if logger == nil {
 		logger = logging.NewLogger(logging.Config{})

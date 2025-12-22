@@ -27,7 +27,7 @@ func (s *stubProvider) FetchGames(ctx context.Context, date string, tz string) (
 func TestHealth(t *testing.T) {
 	ms := store.NewMemoryStore()
 	svc := domain.NewService(ms)
-	h := NewHandler(svc, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
@@ -50,7 +50,7 @@ func TestHealth(t *testing.T) {
 func TestHealthShuttingDownReturnsServiceUnavailable(t *testing.T) {
 	ms := store.NewMemoryStore()
 	svc := domain.NewService(ms)
-	h := NewHandler(svc, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	ctx, cancel := context.WithCancel(req.Context())
@@ -87,7 +87,7 @@ func TestGamesToday(t *testing.T) {
 	}
 	ms.SetGames([]domain.Game{game})
 
-	h := NewHandler(svc, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 	fixedNow := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
 	h.now = func() time.Time { return fixedNow }
 
@@ -126,7 +126,7 @@ func TestGamesTodayWithDateUsesProvider(t *testing.T) {
 		games: []domain.Game{{ID: "provider-game"}},
 	}
 
-	h := NewHandler(svc, nil, provider)
+	h := NewHandler(svc, nil, provider, nil)
 
 	req := httptest.NewRequest("GET", "/games?date=2024-02-01", nil)
 	rr := httptest.NewRecorder()
@@ -153,7 +153,7 @@ func TestGamesTodayWithDateUsesProvider(t *testing.T) {
 func TestGamesTodayWithInvalidDateReturnsBadRequest(t *testing.T) {
 	ms := store.NewMemoryStore()
 	svc := domain.NewService(ms)
-	h := NewHandler(svc, nil, &stubProvider{})
+	h := NewHandler(svc, nil, &stubProvider{}, nil)
 
 	req := httptest.NewRequest("GET", "/games?date=not-a-date", nil)
 	rr := httptest.NewRecorder()
@@ -199,7 +199,7 @@ func TestGamesTodayUpstreamFailureReturnsStandardError(t *testing.T) {
 
 	for _, tc := range tests {
 		provider := &stubProvider{err: tc.err}
-		h := NewHandler(svc, nil, provider)
+		h := NewHandler(svc, nil, provider, nil)
 
 		req := httptest.NewRequest("GET", "/games?date=2024-02-01", nil)
 		if tc.withReqID {
@@ -233,7 +233,7 @@ func TestGamesTodayUpstreamFailureReturnsStandardError(t *testing.T) {
 func TestGameByIDNotFound(t *testing.T) {
 	ms := store.NewMemoryStore()
 	svc := domain.NewService(ms)
-	h := NewHandler(svc, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 
 	req := httptest.NewRequest("GET", "/games/unknown", nil)
 	rr := httptest.NewRecorder()
@@ -248,7 +248,7 @@ func TestGameByIDNotFound(t *testing.T) {
 func TestGameByIDMissingID(t *testing.T) {
 	ms := store.NewMemoryStore()
 	svc := domain.NewService(ms)
-	h := NewHandler(svc, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 
 	cases := []struct {
 		name string
@@ -293,7 +293,7 @@ func TestGameByIDSuccess(t *testing.T) {
 	}
 	ms.SetGames([]domain.Game{game})
 
-	h := NewHandler(svc, nil, nil)
+	h := NewHandler(svc, nil, nil, nil)
 
 	req := httptest.NewRequest("GET", "/games/game-1", nil)
 	rr := httptest.NewRecorder()

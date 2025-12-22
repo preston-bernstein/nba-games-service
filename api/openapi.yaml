@@ -22,6 +22,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /ready:
+    get:
+      summary: Readiness probe
+      responses:
+        "200":
+          description: Service is ready to serve traffic
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+        "503":
+          description: Service is not ready (poller not warmed or failing)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /games/today:
     get:
       summary: Get games for today
@@ -189,3 +205,10 @@ components:
         requestId:
           type: string
       required: [error]
+    ReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready]
+      required: [status]

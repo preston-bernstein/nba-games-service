@@ -12,6 +12,7 @@ import (
 
 	"nba-games-service/internal/config"
 	"nba-games-service/internal/domain"
+	"nba-games-service/internal/poller"
 	"nba-games-service/internal/providers/balldontlie"
 	"nba-games-service/internal/store"
 )
@@ -48,6 +49,7 @@ type stubPoller struct {
 	startCalls int
 	stopCalls  int
 	err        error
+	status     poller.Status
 }
 
 func (p *stubPoller) Start(ctx context.Context) {
@@ -59,6 +61,10 @@ func (p *stubPoller) Stop(ctx context.Context) error {
 	_ = ctx
 	p.stopCalls++
 	return p.err
+}
+
+func (p *stubPoller) Status() poller.Status {
+	return p.status
 }
 
 type stubHTTPServer struct {
