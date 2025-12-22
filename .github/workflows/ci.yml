@@ -23,6 +23,7 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOCACHE: ${{ github.workspace }}/.cache/go-build
+        working-directory: ${{ github.workspace }}
         run: |
           mkdir -p "$GOCACHE"
           go test ./...
@@ -31,6 +32,7 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOCACHE: ${{ github.workspace }}/.cache/go-build
+        working-directory: ${{ github.workspace }}
         run: |
           mkdir -p "$GOCACHE" bin
           go build -o bin/server ./cmd/server
