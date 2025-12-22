@@ -32,5 +32,5 @@ jobs:
           CGO_ENABLED: 0
           GOCACHE: ${{ github.workspace }}/.cache/go-build
         run: |
-          mkdir -p "$GOCACHE"
+          mkdir -p "$GOCACHE" bin
           go build -o bin/server ./cmd/server
