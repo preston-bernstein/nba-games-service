@@ -4,6 +4,7 @@ server
 
 # Build cache
 .cache/
+.gocache/
 
 # macOS
 .DS_Store

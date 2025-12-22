@@ -58,6 +58,8 @@ curl http://localhost:4000/games/fixture-1
 
 When using the fixture provider, `games/today` returns two deterministic sample games.
 
+OpenAPI spec: see `api/openapi.yaml` for the service contract (mirrors the documented endpoints).
+
 ## Testing
 ```sh
 make test

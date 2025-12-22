@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -43,6 +44,31 @@ func TestHealth(t *testing.T) {
 	}
 	if resp["status"] != "ok" {
 		t.Fatalf("expected status ok, got %s", resp["status"])
+	}
+}
+
+func TestHealthShuttingDownReturnsServiceUnavailable(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+	h := NewHandler(svc, nil, nil)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	cancel()
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	h.Health(rr, req)
+
+	if rr.Code != 503 {
+		t.Fatalf("expected 503, got %d", rr.Code)
+	}
+	var resp map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed decoding health response: %v", err)
+	}
+	if resp["error"] != "shutting down" {
+		t.Fatalf("unexpected error %q", resp["error"])
 	}
 }
 
@@ -124,6 +150,86 @@ func TestGamesTodayWithDateUsesProvider(t *testing.T) {
 	}
 }
 
+func TestGamesTodayWithInvalidDateReturnsBadRequest(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+	h := NewHandler(svc, nil, &stubProvider{})
+
+	req := httptest.NewRequest("GET", "/games?date=not-a-date", nil)
+	rr := httptest.NewRecorder()
+
+	h.GamesToday(rr, req)
+
+	if rr.Code != 400 {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed decoding error response: %v", err)
+	}
+	if resp["error"] == "" {
+		t.Fatalf("expected error message")
+	}
+}
+
+func TestGamesTodayUpstreamFailureReturnsStandardError(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+
+	tests := []struct {
+		name          string
+		err           error
+		expectedError string
+		withReqID     bool
+	}{
+		{
+			name:          "generic",
+			err:           errors.New("boom"),
+			expectedError: "upstream temporarily unavailable",
+			withReqID:     true,
+		},
+		{
+			name:          "deadline",
+			err:           context.DeadlineExceeded,
+			expectedError: "upstream timed out",
+			withReqID:     false,
+		},
+	}
+
+	for _, tc := range tests {
+		provider := &stubProvider{err: tc.err}
+		h := NewHandler(svc, nil, provider)
+
+		req := httptest.NewRequest("GET", "/games?date=2024-02-01", nil)
+		if tc.withReqID {
+			req = req.WithContext(withRequestID(req.Context(), "req-123"))
+		}
+		rr := httptest.NewRecorder()
+
+		h.GamesToday(rr, req)
+
+		if rr.Code != 502 {
+			t.Fatalf("%s: expected 502, got %d", tc.name, rr.Code)
+		}
+
+		var resp map[string]string
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("%s: failed decoding error response: %v", tc.name, err)
+		}
+		if resp["error"] != tc.expectedError {
+			t.Fatalf("%s: unexpected error message %q", tc.name, resp["error"])
+		}
+		_, hasReqID := resp["requestId"]
+		if tc.withReqID && !hasReqID {
+			t.Fatalf("%s: expected requestId to be included", tc.name)
+		}
+		if !tc.withReqID && hasReqID {
+			t.Fatalf("%s: expected requestId to be absent", tc.name)
+		}
+	}
+}
+
 func TestGameByIDNotFound(t *testing.T) {
 	ms := store.NewMemoryStore()
 	svc := domain.NewService(ms)
@@ -144,13 +250,31 @@ func TestGameByIDMissingID(t *testing.T) {
 	svc := domain.NewService(ms)
 	h := NewHandler(svc, nil, nil)
 
-	req := httptest.NewRequest("GET", "/games/", nil)
-	rr := httptest.NewRecorder()
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"missing", "/games/"},
+		{"empty", "/games"},
+		{"whitespace", "/games/%20bad"},
+	}
 
-	h.GameByID(rr, req)
+	for _, c := range cases {
+		req := httptest.NewRequest("GET", c.path, nil)
+		rr := httptest.NewRecorder()
 
-	if rr.Code != 400 {
-		t.Fatalf("expected 400, got %d", rr.Code)
+		h.GameByID(rr, req)
+
+		if rr.Code != 400 {
+			t.Fatalf("%s: expected 400, got %d", c.name, rr.Code)
+		}
+		var resp map[string]string
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("%s: failed to decode response: %v", c.name, err)
+		}
+		if resp["error"] == "" {
+			t.Fatalf("%s: expected error message", c.name)
+		}
 	}
 }
 

@@ -1,9 +1,12 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	nethttp "net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -34,6 +37,10 @@ func NewHandler(svc *domain.Service, logger *slog.Logger, provider providers.Gam
 
 // Health reports the service health.
 func (h *Handler) Health(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if err := r.Context().Err(); err != nil {
+		h.writeError(w, r, nethttp.StatusServiceUnavailable, "shutting down")
+		return
+	}
 	resp := map[string]string{"status": "ok"}
 	h.writeJSON(w, nethttp.StatusOK, resp)
 }
@@ -52,13 +59,24 @@ func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 		}
 	}
 
+	if dateParam != "" {
+		if _, err := time.Parse("2006-01-02", dateParam); err != nil {
+			h.writeError(w, r, nethttp.StatusBadRequest, "invalid date format (expected YYYY-MM-DD)")
+			return
+		}
+	}
+
 	if dateParam != "" && h.provider != nil {
 		fetched, err := h.provider.FetchGames(r.Context(), dateParam, tz)
 		if err != nil {
 			if logger != nil {
 				logger.Warn("failed to fetch games", "date", dateParam, "err", err)
 			}
-			h.writeError(w, r, nethttp.StatusBadGateway, "failed to fetch games")
+			msg := "upstream temporarily unavailable"
+			if errors.Is(err, context.DeadlineExceeded) {
+				msg = "upstream timed out"
+			}
+			h.writeUpstreamError(w, r, nethttp.StatusBadGateway, msg)
 			return
 		}
 		games = fetched
@@ -82,9 +100,16 @@ func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 // GameByID returns a specific game if present.
 func (h *Handler) GameByID(w nethttp.ResponseWriter, r *nethttp.Request) {
 	// Expect path: /games/{id}
-	id := strings.TrimPrefix(r.URL.Path, "/games/")
-	if id == "" || id == "games" {
-		h.writeError(w, r, nethttp.StatusBadRequest, "missing game id")
+	path := strings.TrimPrefix(r.URL.Path, "/games")
+	if path == "" || path == "/" {
+		h.writeError(w, r, nethttp.StatusBadRequest, "invalid game id")
+		return
+	}
+
+	idRaw := strings.TrimPrefix(path, "/")
+	id, err := url.PathUnescape(idRaw)
+	if err != nil || id == "" || id == "games" || strings.ContainsAny(id, " \t/") {
+		h.writeError(w, r, nethttp.StatusBadRequest, "invalid game id")
 		return
 	}
 
@@ -112,4 +137,8 @@ func (h *Handler) writeError(w nethttp.ResponseWriter, r *nethttp.Request, statu
 		body["requestId"] = reqID
 	}
 	h.writeJSON(w, status, body)
+}
+
+func (h *Handler) writeUpstreamError(w nethttp.ResponseWriter, r *nethttp.Request, status int, message string) {
+	h.writeError(w, r, status, message)
 }
