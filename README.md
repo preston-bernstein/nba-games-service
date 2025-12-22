@@ -4,9 +4,10 @@ This service polls upstream NBA providers, normalizes games into the shared data
 
 ## Features
 - Canonical game/domain models aligned with the portfolio’s shared types.
-- HTTP API: `/health`, `/games/today`, `/games/{id}`.
+- HTTP API: `/health`, `/ready`, `/games/today`, `/games/{id}`, plus `GET /games?date=YYYY-MM-DD&tz=...`.
 - In-memory store with a periodic poller that warms data on startup.
 - Configurable provider selection (`fixture` default; balldontlie client available).
+- Observability: structured logging, Prometheus/OTEL metrics on `:9090/metrics`, request ids in responses.
 - Graceful shutdown and test coverage across handlers, poller, store, server wiring, and config.
 
 ## Getting Started
@@ -27,8 +28,11 @@ Environment variables (optional; defaults shown). See `.env.example`:
 - `BALDONTLIE_API_KEY` (optional; use if your balldontlie instance requires auth)
 - `BALDONTLIE_TIMEZONE` (default `America/New_York`; controls which “today” date is requested from balldontlie)
 - `BALDONTLIE_MAX_PAGES` (default `5`; cap on paginated fetches)
+- `BALDONTLIE_TIMEOUT` (default `10s`; HTTP client timeout for balldontlie)
 - `LOG_LEVEL` (optional; `debug`/`info`/`warn`/`error`, default `info`)
 - `LOG_FORMAT` (optional; `json` default, or `text`)
+- `OTEL_EXPORTER_OTLP_ENDPOINT` (optional; if set, exports metrics to an OTLP collector)
+- `OTEL_EXPORTER_OTLP_INSECURE` (default `false`; set to `true` only for local/non-TLS collectors)
   - Use `LOG_FORMAT=text` and `LOG_LEVEL=debug` for local development to get readable output with source hints; keep `json` for prod.
 
 ## Run
@@ -41,6 +45,12 @@ Equivalent raw command:
 CGO_ENABLED=0 GOCACHE=$(pwd)/.cache/go-build go run ./cmd/server
 ```
 
+Run with Docker Compose:
+```sh
+docker compose up --build
+```
+Requires a `.env` (or adjust `env_file` in `docker-compose.yml`); exposes HTTP on `4000` and metrics on `9090`.
+
 VS Code: Command Palette → Run Task → `Go: Run (make run)` (tasks are preconfigured to set PATH/GOCACHE/CGO flags).
 
 Quick curl checks (with fixture provider):
@@ -52,6 +62,7 @@ curl http://localhost:4000/games/fixture-1
 
 ## Endpoints
 - `GET /health` → `{"status":"ok"}`
+- `GET /ready` → 200 when the poller has successfully fetched at least once and has not failed 3 consecutive times; otherwise 503 with a basic status payload.
 - `GET /games/today` → `{ "date": "YYYY-MM-DD", "games": [...] }`
 - `GET /games?date=YYYY-MM-DD&tz=America/New_York` → games for a specific date (defaults to “today” if omitted; optional `tz` influences “today” when `date` is missing; invalid `tz` falls back to server default)
 - `GET /games/{id}` → single game or 404
@@ -68,6 +79,13 @@ CGO_ENABLED=0 GOCACHE=$(pwd)/.cache/go-build go test ./...
 ```
 
 VS Code: Command Palette → Run Task → `Go: Test (make test)`.
+
+## Benchmarks
+Quick load/perf checks for handlers and poller:
+```sh
+CGO_ENABLED=0 GOCACHE=$(pwd)/.cache/go-build go test -bench=. ./internal/http ./internal/poller
+```
+Use these to spot regressions in handler latency or polling cycles (watch ns/op and allocs/op).
 
 ## Build
 ```sh
@@ -109,8 +127,8 @@ This repo is part of a broader portfolio. The service respects the shared data m
 For the balldontlie provider, “today” is derived from a configurable server timezone (default `America/New_York`). If you later want per-user local “today,” the API would need to accept a date/timezone parameter and the UI would pass it through.
 
 ## Status
-- Done: baseline server wiring, fixture provider, poller with warm-start, in-memory store, HTTP endpoints (`/health`, `/games/today`, `/games/{id}`), provider selection, balldontlie client + mapper, VS Code tasks, Postman collection, tests across handlers/poller/store/server/config.
-- In progress/planned: metrics and richer logging, retry/backoff for provider errors, CI pipeline, containerization.
+- Done: baseline server wiring, fixture provider, poller with warm-start/readiness, in-memory store, HTTP endpoints (`/health`, `/ready`, `/games/today`, `/games/{id}`, `/games?date=...`), provider selection, balldontlie client + mapper, retries/backoff for providers with rate-limit handling, metrics/OTEL wiring, VS Code tasks, Postman collection, CI build/test workflow, Dockerfile, tests across handlers/poller/store/server/config.
+- In progress/planned: deeper provider coverage (pagination caps, additional endpoints), richer metrics/tracing fields, optional persistence layer instead of in-memory store, deployment hardening.
 
 ## Roadmap
 - Implement a real balldontlie provider client and mapper to domain models.

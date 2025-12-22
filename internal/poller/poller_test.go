@@ -190,3 +190,32 @@ func TestPollerStatusTracksFailuresAndSuccess(t *testing.T) {
 		t.Fatalf("expected ready after success")
 	}
 }
+
+func BenchmarkPollerFetchOnce(b *testing.B) {
+	provider := &stubProvider{
+		games: []domain.Game{
+			{
+				ID:        "bench-game",
+				Provider:  "fixture",
+				HomeTeam:  domain.Team{ID: "home", Name: "Home", ExternalID: 1},
+				AwayTeam:  domain.Team{ID: "away", Name: "Away", ExternalID: 2},
+				StartTime: time.Date(2024, 1, 1, 19, 30, 0, 0, time.UTC).Format(time.RFC3339),
+				Status:    domain.StatusFinal,
+				Score:     domain.Score{Home: 100, Away: 95},
+				Meta:      domain.GameMeta{Season: "2023-2024", UpstreamGameID: 1},
+			},
+		},
+	}
+
+	s := store.NewMemoryStore()
+	svc := domain.NewService(s)
+	p := New(provider, svc, nil, nil, time.Second)
+	ctx := context.Background()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		p.fetchOnce(ctx)
+	}
+}

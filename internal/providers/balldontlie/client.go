@@ -21,6 +21,7 @@ type Config struct {
 	HTTPClient *http.Client
 	Timezone   string
 	MaxPages   int
+	Timeout    time.Duration
 }
 
 // Client fetches games from the balldontlie API and maps them to domain models.
@@ -38,7 +39,7 @@ func NewClient(cfg Config) *Client {
 	return &Client{
 		baseURL:    normalizeBaseURL(cfg.BaseURL),
 		apiKey:     cfg.APIKey,
-		httpClient: resolveHTTPClient(cfg.HTTPClient),
+		httpClient: resolveHTTPClient(cfg.HTTPClient, cfg.Timeout),
 		now:        time.Now,
 		loc:        resolveLocation(cfg.Timezone),
 		maxPages:   resolveMaxPages(cfg.MaxPages),

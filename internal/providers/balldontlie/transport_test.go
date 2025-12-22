@@ -23,22 +23,49 @@ func TestNormalizeBaseURLTrimsTrailingSlashAndDefaults(t *testing.T) {
 	}
 }
 
-func TestResolveHTTPClientDefaultsTimeout(t *testing.T) {
-	client := resolveHTTPClient(nil)
-	httpClient, ok := client.(*http.Client)
-	if !ok {
-		t.Fatalf("expected *http.Client, got %T", client)
+func TestResolveHTTPClientTimeouts(t *testing.T) {
+	cases := []struct {
+		name        string
+		client      *http.Client
+		timeout     time.Duration
+		expected    time.Duration
+		expectSame  bool
+	}{
+		{
+			name:     "defaults",
+			client:   nil,
+			timeout:  0,
+			expected: defaultHTTPTimeout,
+		},
+		{
+			name:       "uses provided client",
+			client:     &http.Client{Timeout: 5 * time.Second},
+			timeout:    0,
+			expectSame: true,
+		},
+		{
+			name:     "overrides timeout",
+			client:   nil,
+			timeout:  2 * time.Second,
+			expected: 2 * time.Second,
+		},
 	}
-	if httpClient.Timeout != defaultHTTPTimeout {
-		t.Fatalf("expected timeout %s, got %s", defaultHTTPTimeout, httpClient.Timeout)
-	}
-}
 
-func TestResolveHTTPClientUsesProvidedClient(t *testing.T) {
-	custom := &http.Client{Timeout: 5 * time.Second}
-	client := resolveHTTPClient(custom)
-	if client != custom {
-		t.Fatalf("expected provided client to be used")
+	for _, tc := range cases {
+		c := resolveHTTPClient(tc.client, tc.timeout)
+		if tc.expectSame {
+			if c != tc.client {
+				t.Fatalf("%s: expected provided client to be used", tc.name)
+			}
+			continue
+		}
+		httpClient, ok := c.(*http.Client)
+		if !ok {
+			t.Fatalf("%s: expected *http.Client, got %T", tc.name, c)
+		}
+		if httpClient.Timeout != tc.expected {
+			t.Fatalf("%s: expected timeout %s, got %s", tc.name, tc.expected, httpClient.Timeout)
+		}
 	}
 }
 

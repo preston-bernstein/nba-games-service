@@ -7,10 +7,12 @@ const (
 	envBdlAPIKey   = "BALDONTLIE_API_KEY"
 	envBdlTimezone = "BALDONTLIE_TIMEZONE"
 	envBdlMaxPages = "BALDONTLIE_MAX_PAGES"
+	envBdlTimeout  = "BALDONTLIE_TIMEOUT"
 
 	defaultBdlBaseURL  = "https://api.balldontlie.io/v1"
 	defaultBdlTimezone = "America/New_York"
 	defaultBdlMaxPages = 5
+	defaultBdlTimeout  = 10 * time.Second
 )
 
 // BalldontlieConfig controls how we talk to the balldontlie API.
@@ -19,6 +21,7 @@ type BalldontlieConfig struct {
 	APIKey   string
 	Timezone string
 	MaxPages int
+	Timeout  Duration
 }
 
 func loadBalldontlie() BalldontlieConfig {
@@ -27,6 +30,7 @@ func loadBalldontlie() BalldontlieConfig {
 		APIKey:   envOrDefault(envBdlAPIKey, ""),
 		Timezone: envOrDefault(envBdlTimezone, defaultBdlTimezone),
 		MaxPages: intEnvOrDefault(envBdlMaxPages, defaultBdlMaxPages),
+		Timeout:  durationEnvOrDefault(envBdlTimeout, defaultBdlTimeout),
 	}
 }
 

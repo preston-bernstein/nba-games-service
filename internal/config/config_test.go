@@ -18,6 +18,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv(envOtelEndpoint, "")
 	t.Setenv(envOtelService, "")
 	t.Setenv(envOtelInsecure, "")
+	t.Setenv(envBdlTimeout, "")
 
 	cfg := Load()
 
@@ -54,8 +55,11 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Metrics.ServiceName != "nba-games-service" {
 		t.Fatalf("expected default service name nba-games-service, got %s", cfg.Metrics.ServiceName)
 	}
-	if !cfg.Metrics.OtlpInsecure {
-		t.Fatalf("expected otlp insecure default true")
+	if cfg.Metrics.OtlpInsecure {
+		t.Fatalf("expected otlp insecure default false")
+	}
+	if cfg.Balldontlie.Timeout != defaultBdlTimeout {
+		t.Fatalf("expected default balldontlie timeout %s, got %s", defaultBdlTimeout, cfg.Balldontlie.Timeout)
 	}
 }
 
@@ -67,6 +71,7 @@ func TestLoadOverrides(t *testing.T) {
 	t.Setenv(envBdlAPIKey, "secret-key")
 	t.Setenv(envBdlTimezone, "UTC")
 	t.Setenv(envBdlMaxPages, "2")
+	t.Setenv(envBdlTimeout, "15s")
 	t.Setenv(envMetricsOn, "false")
 	t.Setenv(envMetricsPort, "9999")
 	t.Setenv(envOtelEndpoint, "http://otel-collector:4318")
@@ -95,6 +100,9 @@ func TestLoadOverrides(t *testing.T) {
 	}
 	if cfg.Balldontlie.MaxPages != 2 {
 		t.Fatalf("expected balldontlie max pages override, got %d", cfg.Balldontlie.MaxPages)
+	}
+	if cfg.Balldontlie.Timeout != 15*time.Second {
+		t.Fatalf("expected balldontlie timeout override, got %s", cfg.Balldontlie.Timeout)
 	}
 	if cfg.Metrics.Enabled {
 		t.Fatalf("expected metrics disabled via env override")

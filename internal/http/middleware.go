@@ -30,9 +30,11 @@ func LoggingMiddleware(baseLogger *slog.Logger, recorder *metrics.Recorder, next
 			slog.String("request_id", reqID),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
-			slog.String("query", r.URL.RawQuery),
 			slog.String("client_ip", clientIP),
 		)
+		if safeQuery := sanitizeQuery(r.URL.RawQuery); safeQuery != "" {
+			logger = logger.With(slog.String("query", safeQuery))
+		}
 
 		ctx := logging.WithLogger(r.Context(), logger)
 		ctx = withRequestID(ctx, reqID)
@@ -79,4 +81,15 @@ func normalizePath(path string) string {
 		}
 		return path
 	}
+}
+
+func sanitizeQuery(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	lower := strings.ToLower(raw)
+	if strings.Contains(lower, "key=") || strings.Contains(lower, "token=") || strings.Contains(lower, "secret=") || strings.Contains(lower, "password=") {
+		return "[redacted]"
+	}
+	return raw
 }

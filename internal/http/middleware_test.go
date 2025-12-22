@@ -22,3 +22,22 @@ func TestNormalizePath(t *testing.T) {
 		}
 	}
 }
+
+func TestSanitizeQuery(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want string
+	}{
+		{"", ""},
+		{"page=1&limit=10", "page=1&limit=10"},
+		{"api_key=secret", "[redacted]"},
+		{"token=abc123", "[redacted]"},
+		{"password=hunter2", "[redacted]"},
+	}
+
+	for _, c := range cases {
+		if got := sanitizeQuery(c.raw); got != c.want {
+			t.Fatalf("sanitizeQuery(%q) = %q, want %q", c.raw, got, c.want)
+		}
+	}
+}

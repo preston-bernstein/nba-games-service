@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  nba-games-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "4000:4000"
+      - "9090:9090" # metrics (optional; disable via METRICS_ENABLED=false)
+    restart: unless-stopped

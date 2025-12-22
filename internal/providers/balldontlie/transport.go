@@ -10,11 +10,14 @@ type httpDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func resolveHTTPClient(client *http.Client) httpDoer {
+func resolveHTTPClient(client *http.Client, timeout time.Duration) httpDoer {
 	if client != nil {
 		return client
 	}
-	return &http.Client{Timeout: defaultHTTPTimeout}
+	if timeout <= 0 {
+		timeout = defaultHTTPTimeout
+	}
+	return &http.Client{Timeout: timeout}
 }
 
 func normalizeBaseURL(raw string) string {

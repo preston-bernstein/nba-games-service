@@ -144,11 +144,7 @@ func TestFetchGamesHandlesNon200(t *testing.T) {
 		}, nil
 	})
 
-	client := NewClient(Config{
-		BaseURL:    "http://example.com",
-		HTTPClient: &http.Client{Transport: rt},
-	})
-	client.now = func() time.Time { return time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC) }
+	client := newTestClient(rt, time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC))
 
 	if _, err := client.FetchGames(context.Background(), "", ""); err == nil {
 		t.Fatal("expected error on non-200 response")
@@ -165,11 +161,7 @@ func TestFetchGamesHandlesDecodeError(t *testing.T) {
 		}, nil
 	})
 
-	client := NewClient(Config{
-		BaseURL:    "http://example.com",
-		HTTPClient: &http.Client{Transport: rt},
-	})
-	client.now = func() time.Time { return time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC) }
+	client := newTestClient(rt, time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC))
 
 	if _, err := client.FetchGames(context.Background(), "", ""); err == nil {
 		t.Fatal("expected decode error")
@@ -190,11 +182,7 @@ func TestFetchGamesHandlesRateLimit(t *testing.T) {
 		}, nil
 	})
 
-	client := NewClient(Config{
-		BaseURL:    "http://example.com",
-		HTTPClient: &http.Client{Transport: rt},
-	})
-	client.now = func() time.Time { return time.Unix(0, 0) }
+	client := newTestClient(rt, time.Unix(0, 0))
 
 	_, err := client.FetchGames(context.Background(), "", "")
 	if err == nil {
@@ -242,11 +230,8 @@ func TestFetchGamesRespectsMaxPagesCap(t *testing.T) {
 		}, nil
 	})
 
-	client := NewClient(Config{
-		BaseURL:    "http://example.com",
-		HTTPClient: &http.Client{Transport: rt},
-		MaxPages:   1,
-	})
+	client := newTestClient(rt, time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC))
+	client.maxPages = 1
 
 	games, err := client.FetchGames(context.Background(), "", "")
 	if err != nil {
@@ -318,6 +303,16 @@ func TestParseRetryAfter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newTestClient(rt http.RoundTripper, now time.Time) *Client {
+	c := NewClient(Config{
+		BaseURL:    "http://example.com",
+		HTTPClient: &http.Client{Transport: rt},
+		Timeout:    5 * time.Second,
+	})
+	c.now = func() time.Time { return now }
+	return c
 }
 
 func TestRateLimitDetails(t *testing.T) {

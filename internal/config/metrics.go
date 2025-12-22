@@ -15,6 +15,6 @@ func loadMetrics() MetricsConfig {
 		Port:         envOrDefault(envMetricsPort, defaultMetricsPort),
 		OtlpEndpoint: envOrDefault(envOtelEndpoint, ""),
 		ServiceName:  envOrDefault(envOtelService, "nba-games-service"),
-		OtlpInsecure: boolEnvOrDefault(envOtelInsecure, true),
+		OtlpInsecure: boolEnvOrDefault(envOtelInsecure, false),
 	}
 }
