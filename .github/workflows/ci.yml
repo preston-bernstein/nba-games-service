@@ -9,6 +9,9 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,7 +26,6 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOCACHE: ${{ github.workspace }}/.cache/go-build
-        working-directory: ${{ github.workspace }}
         run: |
           mkdir -p "$GOCACHE"
           go test ./...
@@ -32,7 +34,8 @@ jobs:
         env:
           CGO_ENABLED: 0
           GOCACHE: ${{ github.workspace }}/.cache/go-build
-        working-directory: ${{ github.workspace }}
         run: |
           mkdir -p "$GOCACHE" bin
+          ls -la
+          ls cmd
           go build -o bin/server ./cmd/server
