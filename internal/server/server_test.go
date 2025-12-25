@@ -205,6 +205,20 @@ func TestSelectProviderChoosesBalldontlie(t *testing.T) {
 	}
 }
 
+func TestNewConstructsServer(t *testing.T) {
+	cfg := config.Config{
+		Port:     "0",
+		Provider: "fixture",
+		Metrics: config.MetricsConfig{
+			Enabled: false,
+		},
+	}
+	srv := New(cfg, nil)
+	if srv == nil || srv.Handler() == nil {
+		t.Fatalf("expected server with handler")
+	}
+}
+
 func TestServerHandlesProviderErrorGracefully(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

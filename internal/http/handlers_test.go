@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"nba-games-service/internal/domain"
+	"nba-games-service/internal/poller"
 	"nba-games-service/internal/store"
 )
 
@@ -310,5 +312,51 @@ func TestGameByIDSuccess(t *testing.T) {
 	}
 	if resp.ID != "game-1" {
 		t.Fatalf("unexpected game id %s", resp.ID)
+	}
+}
+
+func TestHandlersRejectNonGET(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+	h := NewHandler(svc, nil, nil, nil)
+	router := NewRouter(h)
+
+	cases := []string{
+		"/health",
+		"/ready",
+		"/games",
+		"/games/today",
+		"/games/game-1",
+	}
+
+	for _, path := range cases {
+		req := httptest.NewRequest("POST", path, nil)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		if rr.Code != 405 {
+			t.Fatalf("%s: expected 405, got %d", path, rr.Code)
+		}
+	}
+}
+
+func TestReadyNotReadyReturns503(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+	h := NewHandler(svc, nil, nil, func() poller.Status {
+		return poller.Status{
+			LastError:           "not ready",
+			ConsecutiveFailures: 3,
+		}
+	})
+
+	req := httptest.NewRequest("GET", "/ready", nil)
+	rr := httptest.NewRecorder()
+
+	h.Ready(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rr.Code)
 	}
 }

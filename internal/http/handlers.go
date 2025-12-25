@@ -40,6 +40,10 @@ func NewHandler(svc *domain.Service, logger *slog.Logger, provider providers.Gam
 
 // Health reports the service health.
 func (h *Handler) Health(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if r.Method != nethttp.MethodGet {
+		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
 	if err := r.Context().Err(); err != nil {
 		h.writeError(w, r, nethttp.StatusServiceUnavailable, "shutting down")
 		return
@@ -50,6 +54,10 @@ func (h *Handler) Health(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 // Ready reports readiness for traffic (e.g., for Kubernetes probes).
 func (h *Handler) Ready(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if r.Method != nethttp.MethodGet {
+		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
 	if h.statusFn == nil {
 		h.writeJSON(w, nethttp.StatusOK, map[string]string{"status": "ready"})
 		return
@@ -67,6 +75,10 @@ func (h *Handler) Ready(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 // GamesToday returns the current snapshot of games.
 func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if r.Method != nethttp.MethodGet {
+		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
 	dateParam := r.URL.Query().Get("date")
 	games := h.svc.Games()
 	date := h.now().Format("2006-01-02")
@@ -119,6 +131,10 @@ func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 // GameByID returns a specific game if present.
 func (h *Handler) GameByID(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if r.Method != nethttp.MethodGet {
+		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
 	// Expect path: /games/{id}
 	path := strings.TrimPrefix(r.URL.Path, "/games")
 	if path == "" || path == "/" {

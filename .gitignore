@@ -15,6 +15,9 @@ bin/
 # Environment
 .env
 
+# Coverage
+coverage.out
+
 # Logs
 *.log
 

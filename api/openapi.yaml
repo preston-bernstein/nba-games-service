@@ -22,6 +22,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
   /ready:
     get:
       summary: Readiness probe
@@ -38,6 +40,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
   /games/today:
     get:
       summary: Get games for today
@@ -53,6 +57,8 @@ paths:
                 $ref: "#/components/schemas/TodayResponse"
         "502":
           $ref: "#/components/responses/UpstreamError"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
   /games:
     get:
       summary: Get games by date
@@ -80,6 +86,8 @@ paths:
                 $ref: "#/components/schemas/TodayResponse"
         "502":
           $ref: "#/components/responses/UpstreamError"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
   /games/{id}:
     get:
       summary: Get a game by ID
@@ -108,6 +116,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
 components:
   parameters:
     TzParam:
@@ -124,18 +134,28 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+        examples:
+          unavailable:
+            value:
+              error: upstream temporarily unavailable
+              requestId: abc123
+    MethodNotAllowed:
+      description: Method not allowed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
-            unavailable:
+            default:
               value:
-                error: upstream temporarily unavailable
-                requestId: abc123
+                error: method not allowed
   schemas:
     HealthCheckResponse:
       type: object
       properties:
         status:
           type: string
-          enum: [ok, degraded, error]
+          enum: [ok]
       required: [status]
     TodayResponse:
       type: object

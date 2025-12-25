@@ -78,6 +78,12 @@ CGO_ENABLED=0 GOCACHE=$(pwd)/.cache/go-build go test ./...
 
 VS Code: Command Palette → Run Task → `Go: Test (make test)`.
 
+Coverage:
+```sh
+make coverage        # function-level summary
+go tool cover -html=coverage.out  # open line-level view
+```
+
 Benchmarks (local, darwin/arm64, Go 1.21):
 ```sh
 CGO_ENABLED=0 GOCACHE=$(pwd)/.cache/go-build go test -bench=. -benchmem ./internal/http ./internal/poller
