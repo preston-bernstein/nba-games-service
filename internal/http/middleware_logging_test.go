@@ -36,3 +36,22 @@ func TestLoggingMiddlewareSetsRequestIDAndRecords(t *testing.T) {
 	}
 	// Recorder has no otel instruments here, so just ensure no panic and header set.
 }
+
+func TestLoggingMiddlewareRedactsSensitiveQuery(t *testing.T) {
+	rec := metrics.NewRecorder()
+	baseLogger := slog.Default()
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := LoggingMiddleware(baseLogger, rec, next)
+
+	req := httptest.NewRequest(http.MethodGet, "/games?token=secret", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}

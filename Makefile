@@ -16,7 +16,7 @@ test:
 coverage:
 	@mkdir -p $(GOCACHE)
 	CGO_ENABLED=$(CGO_ENABLED) GOCACHE=$(GOCACHE) $(GO) test -cover -coverprofile=coverage.out ./...
-	$(GO) tool cover -func=coverage.out
+	GOCACHE=$(GOCACHE) $(GO) tool cover -func=coverage.out
 
 fmt:
 	$(GO) fmt ./...

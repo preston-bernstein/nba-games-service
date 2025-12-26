@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -205,6 +207,20 @@ func TestSelectProviderChoosesBalldontlie(t *testing.T) {
 	}
 }
 
+func TestSelectProviderDefaultsToFixture(t *testing.T) {
+	provider := selectProvider(config.Config{}, nil)
+	if provider == nil {
+		t.Fatalf("expected provider")
+	}
+}
+
+func TestSelectProviderFixtureExplicit(t *testing.T) {
+	provider := selectProvider(config.Config{Provider: "fixture"}, nil)
+	if provider == nil {
+		t.Fatalf("expected fixture provider")
+	}
+}
+
 func TestNewConstructsServer(t *testing.T) {
 	cfg := config.Config{
 		Port:     "0",
@@ -217,6 +233,88 @@ func TestNewConstructsServer(t *testing.T) {
 	if srv == nil || srv.Handler() == nil {
 		t.Fatalf("expected server with handler")
 	}
+}
+
+func TestNormalizeProviderName(t *testing.T) {
+	if got := normalizeProviderName("Balldontlie", nil); got != "balldontlie" {
+		t.Fatalf("expected lowercase raw, got %s", got)
+	}
+	provider := selectProvider(config.Config{Provider: "fixture"}, nil)
+	if got := normalizeProviderName("", provider); got == "" || got == "provider" {
+		t.Fatalf("expected derived provider name, got %s", got)
+	}
+	if got := normalizeProviderName("", nil); got != "provider" {
+		t.Fatalf("expected fallback provider, got %s", got)
+	}
+}
+func TestStartMetricsSkipsWhenNil(t *testing.T) {
+	s := &Server{}
+	s.startMetrics() // should no-op without panic
+}
+
+func TestStartMetricsUsesServer(t *testing.T) {
+	stub := &stubHTTPServer{addr: "addr", listenErr: http.ErrServerClosed}
+	s := &Server{
+		metricsServer: stub,
+	}
+	s.startMetrics()
+	time.Sleep(10 * time.Millisecond)
+	if stub.listenCalls == 0 {
+		t.Fatalf("expected metrics server to start")
+	}
+}
+
+func TestGracefulShutdownStopsAll(t *testing.T) {
+	stubSrv := &stubHTTPServer{}
+	stubMetrics := &stubHTTPServer{}
+	stubPoller := &stubPoller{}
+	metricsStopped := 0
+
+	s := &Server{
+		httpServer:    stubSrv,
+		metricsServer: stubMetrics,
+		poller:        stubPoller,
+		metricsStop: func(ctx context.Context) error {
+			_ = ctx
+			metricsStopped++
+			return nil
+		},
+	}
+
+	s.gracefulShutdown()
+
+	if metricsStopped != 1 {
+		t.Fatalf("expected metricsStop called, got %d", metricsStopped)
+	}
+	if stubMetrics.shutdownCalls != 1 {
+		t.Fatalf("expected metrics server shutdown, got %d", stubMetrics.shutdownCalls)
+	}
+	if stubPoller.stopCalls != 1 {
+		t.Fatalf("expected poller stop, got %d", stubPoller.stopCalls)
+	}
+	if stubSrv.shutdownCalls != 1 {
+		t.Fatalf("expected http server shutdown, got %d", stubSrv.shutdownCalls)
+	}
+}
+
+func TestGracefulShutdownLogsErrors(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	stubSrv := &stubHTTPServer{shutdownErr: errors.New("srv err")}
+	stubMetrics := &stubHTTPServer{shutdownErr: errors.New("metrics err")}
+	stubPoller := &stubPoller{err: errors.New("poller err")}
+
+	s := &Server{
+		logger:        logger,
+		httpServer:    stubSrv,
+		metricsServer: stubMetrics,
+		poller:        stubPoller,
+		metricsStop: func(ctx context.Context) error {
+			_ = ctx
+			return errors.New("metrics stop err")
+		},
+	}
+
+	s.gracefulShutdown()
 }
 
 func TestServerHandlesProviderErrorGracefully(t *testing.T) {

@@ -360,3 +360,54 @@ func TestReadyNotReadyReturns503(t *testing.T) {
 		t.Fatalf("expected 503, got %d", rr.Code)
 	}
 }
+
+func TestReadyReturnsOKWhenReady(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+	h := NewHandler(svc, nil, nil, func() poller.Status {
+		return poller.Status{
+			LastSuccess: time.Now(),
+		}
+	})
+
+	req := httptest.NewRequest("GET", "/ready", nil)
+	rr := httptest.NewRecorder()
+
+	h.Ready(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestReadyWithNilStatusFnDefaultsReady(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+	h := NewHandler(svc, nil, nil, nil)
+
+	req := httptest.NewRequest("GET", "/ready", nil)
+	rr := httptest.NewRecorder()
+
+	h.Ready(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestReadyNotReadyDefaultMessage(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := domain.NewService(ms)
+	h := NewHandler(svc, nil, nil, func() poller.Status {
+		return poller.Status{ConsecutiveFailures: 5}
+	})
+
+	req := httptest.NewRequest("GET", "/ready", nil)
+	rr := httptest.NewRecorder()
+
+	h.Ready(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rr.Code)
+	}
+}

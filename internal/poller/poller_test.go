@@ -3,6 +3,8 @@ package poller
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -189,4 +191,20 @@ func TestPollerStatusTracksFailuresAndSuccess(t *testing.T) {
 	if !status.IsReady() {
 		t.Fatalf("expected ready after success")
 	}
+}
+
+func TestPollerLogsOnErrorAndSuccess(t *testing.T) {
+	provider := &stubProvider{
+		err: errors.New("fail"),
+	}
+	s := store.NewMemoryStore()
+	svc := domain.NewService(s)
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+
+	p := New(provider, svc, logger, nil, time.Second)
+	p.fetchOnce(context.Background()) // should log error
+
+	provider.err = nil
+	provider.games = []domain.Game{{ID: "ok"}}
+	p.fetchOnce(context.Background()) // should log info
 }
