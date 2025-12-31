@@ -11,6 +11,7 @@ import (
 
 	"nba-data-service/internal/app/games"
 	"nba-data-service/internal/domain"
+	"nba-data-service/internal/http/middleware"
 	"nba-data-service/internal/poller"
 	"nba-data-service/internal/store"
 )
@@ -279,6 +280,65 @@ func TestGameByIDNotFound(t *testing.T) {
 
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestMethodNotAllowedHandlers(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := games.NewService(ms)
+	h := NewHandler(svc, nil, nil, nil)
+
+	tests := []struct {
+		name string
+		path string
+		fn   func(w http.ResponseWriter, r *http.Request)
+	}{
+		{"health", "/health", h.Health},
+		{"ready", "/ready", h.Ready},
+		{"gamesToday", "/games/today", h.GamesToday},
+		{"gameByID", "/games/id", h.GameByID},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tt.path, nil)
+			rr := httptest.NewRecorder()
+			tt.fn(rr, req)
+			if rr.Code != http.StatusMethodNotAllowed {
+				t.Fatalf("expected 405, got %d", rr.Code)
+			}
+		})
+	}
+}
+
+func TestRequestIDPropagatesThroughMiddleware(t *testing.T) {
+	ms := store.NewMemoryStore()
+	svc := games.NewService(ms)
+	h := NewHandler(svc, nil, nil, nil)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/games/", h.GameByID)
+	wrapped := middleware.LoggingMiddleware(nil, nil, mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/games/missing", nil)
+	req.Header.Set("X-Request-ID", "abc123")
+	rr := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+
+	var resp map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp["requestId"] != "abc123" {
+		t.Fatalf("expected requestId propagated, got %s", resp["requestId"])
+	}
+	if resp["error"] == "" {
+		t.Fatalf("expected error field in response")
 	}
 }
 
