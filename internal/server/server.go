@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"nba-data-service/internal/app/games"
 	"nba-data-service/internal/config"
@@ -17,9 +16,10 @@ import (
 	"nba-data-service/internal/metrics"
 	"nba-data-service/internal/poller"
 	"nba-data-service/internal/providers"
-	"nba-data-service/internal/snapshots"
 	"nba-data-service/internal/store"
 )
+
+var metricsSetup = metrics.Setup
 
 type Server struct {
 	cfg           config.Config
@@ -34,9 +34,8 @@ type Server struct {
 
 // New constructs a server with default provider and poller wiring.
 func New(cfg config.Config, logger *slog.Logger) *Server {
-	provider := selectProvider(cfg, logger)
-	// Apply a shared rate limiter to respect upstream quotas (default 1/min if poller interval < limiter interval).
-	provider = providers.NewRateLimitedProvider(provider, time.Minute, logger)
+	factory := newProviderFactory(logger, nil)
+	provider := factory.build(cfg)
 	return newServerWithProvider(cfg, logger, provider)
 }
 
@@ -57,7 +56,7 @@ func newServerWithMetrics(cfg config.Config, logger *slog.Logger, provider provi
 			OtlpEndpoint: cfg.Metrics.OtlpEndpoint,
 			OtlpInsecure: cfg.Metrics.OtlpInsecure,
 		}
-		rec, handler, shutdown, err := metrics.Setup(context.Background(), recCfg)
+		rec, handler, shutdown, err := metricsSetup(context.Background(), recCfg)
 		if err != nil {
 			if logger != nil {
 				logger.Warn("metrics setup failed, continuing without telemetry", "err", err)
@@ -77,7 +76,11 @@ func newServerWithMetrics(cfg config.Config, logger *slog.Logger, provider provi
 		}
 	}
 
-	provider = providers.NewRetryingProvider(provider, logger, recorder, providerName, 0, 0)
+	if provider == nil {
+		provider = newProviderFactory(logger, recorder).build(cfg)
+	} else {
+		provider = providers.NewRetryingProvider(provider, logger, recorder, providerName, 0, 0)
+	}
 	domainService := buildDomainService()
 	plr := poller.New(provider, domainService, logger, recorder, cfg.PollInterval)
 	httpSrv := buildHTTPServer(cfg, domainService, logger, provider, recorder, plr)
@@ -116,19 +119,9 @@ func buildHTTPServer(cfg config.Config, svc *games.Service, logger *slog.Logger,
 		statusFn = plr.Status
 	}
 
-	snapPath := "data/snapshots"
-	snapStore := snapshots.NewFSStore(snapPath)
-	snapWriter := snapshots.NewWriter(snapPath, cfg.Snapshots.RetentionDays)
-	syncer := snapshots.NewSyncer(provider, snapWriter, snapshots.SyncConfig{
-		Enabled:      cfg.Snapshots.Enabled,
-		Days:         cfg.Snapshots.Days,
-		FutureDays:   cfg.Snapshots.FutureDays,
-		Interval:     cfg.Snapshots.Interval,
-		DailyHourUTC: cfg.Snapshots.DailyHourUTC,
-	}, logger)
-	go syncer.Run(context.Background())
-	handler := handlers.NewHandler(svc, snapStore, logger, statusFn)
-	admin := handlers.NewAdminHandler(svc, snapWriter, provider, cfg.Snapshots.AdminToken, logger)
+	snaps := buildSnapshots(cfg, provider, logger)
+	handler := handlers.NewHandler(svc, snaps.store, logger, statusFn)
+	admin := handlers.NewAdminHandler(svc, snaps.writer, provider, cfg.Snapshots.AdminToken, logger)
 	router := httpserver.NewRouter(handler)
 	// Optionally mount admin refresh endpoint if token is set.
 	if admin != nil && cfg.Snapshots.AdminToken != "" {

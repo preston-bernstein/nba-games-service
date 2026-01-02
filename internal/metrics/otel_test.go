@@ -149,7 +149,8 @@ func TestOtelInstrumentsRecordingDoesNotPanic(t *testing.T) {
 	nilInst.recordRateLimit("p", time.Second)
 	nilInst.recordPoller(time.Millisecond, errors.New("err"))
 
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewManualReader()))
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	inst, err := newOtelInstruments(provider)
 	if err != nil {
 		t.Fatalf("expected instruments, got %v", err)
@@ -197,6 +198,33 @@ func TestNewOtelInstrumentsRegistersAllMetrics(t *testing.T) {
 	inst.recordProviderAttempt("fixture", 10*time.Millisecond, nil)
 	if err := reader.Collect(context.Background(), &metricdata.ResourceMetrics{}); err != nil {
 		t.Fatalf("failed to collect metrics: %v", err)
+	}
+}
+
+func TestNewOtelInstrumentsHandlesCreationErrors(t *testing.T) {
+	// Meter provider that fails instrument creation via injected factory.
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewManualReader()))
+	origFactory := instrumentFactory
+	defer func() { instrumentFactory = origFactory }()
+	instrumentFactory = func(p *sdkmetric.MeterProvider) (*otelInstruments, error) {
+		return nil, errors.New("boom")
+	}
+	if _, err := instrumentFactory(provider); err == nil {
+		t.Fatalf("expected error from injected failure")
+	}
+}
+
+func TestPrometheusComponentsErrorPath(t *testing.T) {
+	origFactory := promReaderFactory
+	defer func() { promReaderFactory = origFactory }()
+
+	// Force promexporter.New to fail by swapping the factory.
+	promReaderFactory = func() (sdkmetric.Reader, http.Handler, error) {
+		return nil, nil, errors.New("prom fail")
+	}
+
+	if _, _, _, err := Setup(context.Background(), TelemetryConfig{Enabled: true}); err == nil {
+		t.Fatalf("expected setup to fail when prom factory fails")
 	}
 }
 

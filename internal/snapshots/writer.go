@@ -28,6 +28,14 @@ func NewWriter(basePath string, retentionDays int) *Writer {
 	}
 }
 
+// BasePath exposes the writer root path (primarily for testing).
+func (w *Writer) BasePath() string {
+	if w == nil {
+		return ""
+	}
+	return w.basePath
+}
+
 // WriteGamesSnapshot writes the games snapshot for the given date (YYYY-MM-DD) and prunes old snapshots.
 func (w *Writer) WriteGamesSnapshot(date string, snapshot domain.TodayResponse) error {
 	if w == nil {

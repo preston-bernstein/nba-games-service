@@ -19,9 +19,7 @@ func TestWriterWritesSnapshotAndManifest(t *testing.T) {
 		Games: []domain.Game{{ID: "g1"}},
 	}
 
-	if err := w.WriteGamesSnapshot(today, snap); err != nil {
-		t.Fatalf("write snapshot failed: %v", err)
-	}
+	writeSnapshot(t, w, today, snap)
 
 	// Verify snapshot file exists.
 	data, err := os.ReadFile(filepath.Join(dir, "games", today+".json"))
@@ -55,9 +53,7 @@ func TestWriterPrunesOldSnapshots(t *testing.T) {
 			Date:  d,
 			Games: []domain.Game{{ID: d}},
 		}
-		if err := w.WriteGamesSnapshot(d, snap); err != nil {
-			t.Fatalf("write snapshot %s failed: %v", d, err)
-		}
+		writeSnapshot(t, w, d, snap)
 	}
 
 	// Old snapshot should be pruned.
@@ -78,5 +74,42 @@ func TestWriterHandlesNilAndEmptyDate(t *testing.T) {
 	w = NewWriter(t.TempDir(), 1)
 	if err := w.WriteGamesSnapshot("", domain.TodayResponse{}); err == nil {
 		t.Fatalf("expected error for empty date")
+	}
+}
+
+func TestNewWriterDefaultsRetention(t *testing.T) {
+	w := NewWriter(t.TempDir(), 0)
+	if w.retentionDays <= 0 {
+		t.Fatalf("expected retention to default when non-positive provided")
+	}
+}
+
+func TestListGameDatesIgnoresNonJSONAndDirs(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "games", "nested"), 0o755); err != nil {
+		t.Fatalf("failed to create nested dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "games", "2024-01-01.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("failed to write snapshot: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "games", "ignore.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("failed to write extra file: %v", err)
+	}
+
+	w := NewWriter(dir, 1)
+	dates, err := w.listGameDates()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(dates) != 1 || dates[0] != "2024-01-01" {
+		t.Fatalf("expected only json snapshots, got %v", dates)
+	}
+}
+
+func TestBasePathExposesRoot(t *testing.T) {
+	base := t.TempDir()
+	w := NewWriter(base, 1)
+	if w.BasePath() != base {
+		t.Fatalf("expected base path %s, got %s", base, w.BasePath())
 	}
 }

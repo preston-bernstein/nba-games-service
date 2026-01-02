@@ -13,7 +13,6 @@ import (
 	"nba-data-service/internal/app/games"
 	"nba-data-service/internal/domain"
 	"nba-data-service/internal/http/middleware"
-	"nba-data-service/internal/logging"
 	"nba-data-service/internal/poller"
 	"nba-data-service/internal/providers"
 	"nba-data-service/internal/snapshots"
@@ -59,48 +58,48 @@ func (h *Handler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 func (h *Handler) Health(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if r.Method != nethttp.MethodGet {
-		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed", h.logger)
 		return
 	}
 	if err := r.Context().Err(); err != nil {
-		h.writeError(w, r, nethttp.StatusServiceUnavailable, "shutting down")
+		writeError(w, r, nethttp.StatusServiceUnavailable, "shutting down", h.logger)
 		return
 	}
 	resp := map[string]string{"status": "ok"}
-	h.writeJSON(w, nethttp.StatusOK, resp)
+	writeJSON(w, nethttp.StatusOK, resp, h.logger)
 }
 
 // Ready reports readiness for traffic (e.g., for Kubernetes probes).
 func (h *Handler) Ready(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if r.Method != nethttp.MethodGet {
-		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed", h.logger)
 		return
 	}
 	if h.statusFn == nil {
-		h.writeJSON(w, nethttp.StatusOK, map[string]string{"status": "ready"})
+		writeJSON(w, nethttp.StatusOK, map[string]string{"status": "ready"}, h.logger)
 		return
 	}
 	if h.statusFn().IsReady() {
-		h.writeJSON(w, nethttp.StatusOK, map[string]string{"status": "ready"})
+		writeJSON(w, nethttp.StatusOK, map[string]string{"status": "ready"}, h.logger)
 		return
 	}
 	msg := h.statusFn().LastError
 	if msg == "" {
 		msg = "not ready"
 	}
-	h.writeError(w, r, nethttp.StatusServiceUnavailable, msg)
+	writeError(w, r, nethttp.StatusServiceUnavailable, msg, h.logger)
 }
 
 // GamesToday returns the current snapshot of games.
 func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if r.Method != nethttp.MethodGet {
-		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed", h.logger)
 		return
 	}
 	dateParam := r.URL.Query().Get("date")
 	games := h.svc.Games()
 	date := h.now().Format("2006-01-02")
-	logger := logging.FromContext(r.Context(), h.logger)
+	logger := loggerFromContext(r, h.logger)
 	tz := r.URL.Query().Get("tz")
 
 	if dateParam == "" && tz != "" {
@@ -111,7 +110,7 @@ func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 	if dateParam != "" {
 		if _, err := time.Parse("2006-01-02", dateParam); err != nil {
-			h.writeError(w, r, nethttp.StatusBadRequest, "invalid date format (expected YYYY-MM-DD)")
+			writeError(w, r, nethttp.StatusBadRequest, "invalid date format (expected YYYY-MM-DD)", h.logger)
 			return
 		}
 	}
@@ -120,7 +119,7 @@ func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if dateParam != "" {
 		snap, err := h.loadSnapshot(dateParam)
 		if err != nil {
-			h.writeUpstreamError(w, r, nethttp.StatusBadGateway, "snapshot unavailable")
+			writeError(w, r, nethttp.StatusBadGateway, "snapshot unavailable", h.logger)
 			return
 		}
 		games = snap.Games
@@ -148,36 +147,36 @@ func (h *Handler) GamesToday(w nethttp.ResponseWriter, r *nethttp.Request) {
 		Date:  date,
 		Games: games,
 	}
-	h.writeJSON(w, nethttp.StatusOK, payload)
+	writeJSON(w, nethttp.StatusOK, payload, h.logger)
 }
 
 // GameByID returns a specific game if present.
 func (h *Handler) GameByID(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if r.Method != nethttp.MethodGet {
-		h.writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed")
+		writeError(w, r, nethttp.StatusMethodNotAllowed, "method not allowed", h.logger)
 		return
 	}
 	// Expect path: /games/{id}
 	path := strings.TrimPrefix(r.URL.Path, "/games")
 	if path == "" || path == "/" {
-		h.writeError(w, r, nethttp.StatusBadRequest, "invalid game id")
+		writeError(w, r, nethttp.StatusBadRequest, "invalid game id", h.logger)
 		return
 	}
 
 	idRaw := strings.TrimPrefix(path, "/")
 	id, err := url.PathUnescape(idRaw)
 	if err != nil || id == "" || id == "games" || strings.ContainsAny(id, " \t/") {
-		h.writeError(w, r, nethttp.StatusBadRequest, "invalid game id")
+		writeError(w, r, nethttp.StatusBadRequest, "invalid game id", h.logger)
 		return
 	}
 
 	game, ok := h.svc.GameByID(id)
 	if !ok {
-		h.writeError(w, r, nethttp.StatusNotFound, "game not found")
+		writeError(w, r, nethttp.StatusNotFound, "game not found", h.logger)
 		return
 	}
 
-	h.writeJSON(w, nethttp.StatusOK, game)
+	writeJSON(w, nethttp.StatusOK, game, h.logger)
 }
 
 func (h *Handler) writeJSON(w nethttp.ResponseWriter, status int, payload any) {

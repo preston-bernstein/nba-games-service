@@ -19,6 +19,7 @@ import (
 var (
 	promReaderFactory = prometheusComponents
 	otlpReaderFactory = buildOTLPReader
+	instrumentFactory = newOtelInstruments
 )
 
 // TelemetryConfig controls how metrics are exported.
@@ -67,7 +68,7 @@ func Setup(ctx context.Context, cfg TelemetryConfig) (*Recorder, http.Handler, f
 
 	provider := sdkmetric.NewMeterProvider(opts...)
 
-	otelInst, err := newOtelInstruments(provider)
+	otelInst, err := instrumentFactory(provider)
 	if err != nil {
 		return nil, nil, nil, err
 	}

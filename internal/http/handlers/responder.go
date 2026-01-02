@@ -1,0 +1,37 @@
+package handlers
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+
+	"nba-data-service/internal/http/middleware"
+	"nba-data-service/internal/logging"
+)
+
+func writeJSON(w http.ResponseWriter, status int, payload any, logger *slog.Logger) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(payload); err != nil && logger != nil {
+		logger.Error("failed to encode response", "err", err)
+	}
+}
+
+func writeError(w http.ResponseWriter, r *http.Request, status int, message string, logger *slog.Logger) {
+	reqID := middleware.RequestIDFromContext(r.Context())
+	if reqID == "" {
+		reqID = r.Header.Get("X-Request-ID")
+	}
+	body := map[string]string{"error": message}
+	if reqID != "" {
+		body["requestId"] = reqID
+	}
+	writeJSON(w, status, body, logger)
+}
+
+func loggerFromContext(r *http.Request, fallback *slog.Logger) *slog.Logger {
+	if r == nil {
+		return fallback
+	}
+	return logging.FromContext(r.Context(), fallback)
+}

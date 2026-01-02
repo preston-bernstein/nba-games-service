@@ -31,11 +31,10 @@ func BenchmarkGamesToday(b *testing.B) {
 	h := NewHandler(svc, snapshots.NewFSStore(b.TempDir()), nil, nil)
 	h.now = func() time.Time { return now }
 
-	req := httptest.NewRequest(http.MethodGet, "/games/today", nil)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/games/today", nil)
 		h.GamesToday(rr, req)
 	}
 }
@@ -58,11 +57,10 @@ func BenchmarkGameByID(b *testing.B) {
 	svc := games.NewService(ms)
 	h := NewHandler(svc, nil, nil, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/games/game-1", nil)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/games/game-1", nil)
 		h.GameByID(rr, req)
 	}
 }

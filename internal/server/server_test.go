@@ -2,149 +2,31 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
-	"nba-data-service/internal/app/games"
 	"nba-data-service/internal/config"
 	"nba-data-service/internal/domain"
-	"nba-data-service/internal/poller"
+	"nba-data-service/internal/metrics"
 	"nba-data-service/internal/providers/balldontlie"
-	"nba-data-service/internal/store"
+	"nba-data-service/internal/testutil"
 )
-
-type stubProvider struct {
-	games  []domain.Game
-	notify chan struct{}
-}
-
-func (s *stubProvider) FetchGames(ctx context.Context, date string, tz string) ([]domain.Game, error) {
-	_ = ctx
-	_ = date
-	_ = tz
-	if s.notify != nil {
-		select {
-		case <-s.notify:
-		default:
-			close(s.notify)
-		}
-	}
-	return s.games, nil
-}
-
-type errProvider struct{}
-
-func (e *errProvider) FetchGames(ctx context.Context, date string, tz string) ([]domain.Game, error) {
-	_ = ctx
-	_ = date
-	_ = tz
-	return nil, context.DeadlineExceeded
-}
-
-type stubPoller struct {
-	startCalls int
-	stopCalls  int
-	err        error
-	status     poller.Status
-}
-
-func (p *stubPoller) Start(ctx context.Context) {
-	_ = ctx
-	p.startCalls++
-}
-
-func (p *stubPoller) Stop(ctx context.Context) error {
-	_ = ctx
-	p.stopCalls++
-	return p.err
-}
-
-func (p *stubPoller) Status() poller.Status {
-	return p.status
-}
-
-type stubHTTPServer struct {
-	addr          string
-	handler       http.Handler
-	listenCalls   int
-	shutdownCalls int
-	listenErr     error
-	shutdownErr   error
-}
-
-func (s *stubHTTPServer) ListenAndServe() error {
-	s.listenCalls++
-	return s.listenErr
-}
-
-func (s *stubHTTPServer) Shutdown(ctx context.Context) error {
-	_ = ctx
-	s.shutdownCalls++
-	return s.shutdownErr
-}
-
-func (s *stubHTTPServer) Addr() string {
-	return s.addr
-}
-
-func (s *stubHTTPServer) Handler() http.Handler {
-	return s.handler
-}
-
-type blockingHTTPServer struct {
-	addr          string
-	handler       http.Handler
-	shutdownCalls int
-	unblock       chan struct{}
-}
-
-func (s *blockingHTTPServer) ListenAndServe() error {
-	return nil
-}
-
-func (s *blockingHTTPServer) Shutdown(ctx context.Context) error {
-	s.shutdownCalls++
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.unblock:
-		return nil
-	}
-}
-
-func (s *blockingHTTPServer) Addr() string {
-	return s.addr
-}
-
-func (s *blockingHTTPServer) Handler() http.Handler {
-	return s.handler
-}
 
 func TestServerServesHealthAndGames(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	game := domain.Game{
-		ID:        "stub-1",
-		Provider:  "stub",
-		HomeTeam:  domain.Team{ID: "home", Name: "Home", ExternalID: 1},
-		AwayTeam:  domain.Team{ID: "away", Name: "Away", ExternalID: 2},
-		StartTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC).Format(time.RFC3339),
-		Status:    domain.StatusScheduled,
-		Score:     domain.Score{Home: 0, Away: 0},
-		Meta:      domain.GameMeta{Season: "2023-2024", UpstreamGameID: 10},
-	}
+	game := testutil.SampleGame("stub-1")
+	game.StartTime = time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC).Format(time.RFC3339)
 
-	provider := &stubProvider{
-		games:  []domain.Game{game},
-		notify: make(chan struct{}),
+	provider := &testutil.NotifyingProvider{
+		Games:  []domain.Game{game},
+		Notify: make(chan struct{}),
 	}
 
 	cfg := config.Config{PollInterval: 5 * time.Millisecond}
@@ -152,39 +34,36 @@ func TestServerServesHealthAndGames(t *testing.T) {
 	srv.poller.Start(ctx)
 
 	select {
-	case <-provider.notify:
+	case <-provider.Notify:
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timed out waiting for poller to fetch")
 	}
 
 	router := srv.Handler()
 
-	healthReq := httptest.NewRequest(http.MethodGet, "/health", nil)
-	healthRec := httptest.NewRecorder()
-	router.ServeHTTP(healthRec, healthReq)
+	healthRec := testutil.Serve(router, http.MethodGet, "/health", nil)
+	testutil.AssertStatus(t, healthRec, http.StatusOK)
 
-	if healthRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 from /health, got %d", healthRec.Code)
-	}
-
-	gamesReq := httptest.NewRequest(http.MethodGet, "/games/today", nil)
-	gamesRec := httptest.NewRecorder()
-	router.ServeHTTP(gamesRec, gamesReq)
-
-	if gamesRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 from /games/today, got %d", gamesRec.Code)
-	}
+	gamesRec := testutil.Serve(router, http.MethodGet, "/games/today", nil)
+	testutil.AssertStatus(t, gamesRec, http.StatusOK)
 
 	var today domain.TodayResponse
-	if err := json.NewDecoder(gamesRec.Body).Decode(&today); err != nil {
-		t.Fatalf("failed to decode games response: %v", err)
-	}
+	testutil.DecodeJSON(t, gamesRec, &today)
 
 	if len(today.Games) != 1 {
 		t.Fatalf("expected 1 game, got %d", len(today.Games))
 	}
 	if today.Games[0].ID != "stub-1" {
 		t.Fatalf("unexpected game id %s", today.Games[0].ID)
+	}
+}
+
+func TestProviderFactoryWrapsProvider(t *testing.T) {
+	cfg := config.Config{Provider: "fixture"}
+	factory := newProviderFactory(nil, metrics.NewRecorder())
+	provider := factory.build(cfg)
+	if provider == nil {
+		t.Fatalf("expected provider")
 	}
 }
 
@@ -254,21 +133,21 @@ func TestStartMetricsSkipsWhenNil(t *testing.T) {
 }
 
 func TestStartMetricsUsesServer(t *testing.T) {
-	stub := &stubHTTPServer{addr: "addr", listenErr: http.ErrServerClosed}
+	stub := &testutil.StubHTTPServer{AddrVal: "addr", ListenErr: http.ErrServerClosed}
 	s := &Server{
 		metricsServer: stub,
 	}
 	s.startMetrics()
 	time.Sleep(10 * time.Millisecond)
-	if stub.listenCalls == 0 {
+	if stub.ListenCalls == 0 {
 		t.Fatalf("expected metrics server to start")
 	}
 }
 
 func TestGracefulShutdownStopsAll(t *testing.T) {
-	stubSrv := &stubHTTPServer{}
-	stubMetrics := &stubHTTPServer{}
-	stubPoller := &stubPoller{}
+	stubSrv := &testutil.StubHTTPServer{}
+	stubMetrics := &testutil.StubHTTPServer{}
+	stubPoller := &testutil.StubPoller{}
 	metricsStopped := 0
 
 	s := &Server{
@@ -287,22 +166,22 @@ func TestGracefulShutdownStopsAll(t *testing.T) {
 	if metricsStopped != 1 {
 		t.Fatalf("expected metricsStop called, got %d", metricsStopped)
 	}
-	if stubMetrics.shutdownCalls != 1 {
-		t.Fatalf("expected metrics server shutdown, got %d", stubMetrics.shutdownCalls)
+	if stubMetrics.ShutdownCalls != 1 {
+		t.Fatalf("expected metrics server shutdown, got %d", stubMetrics.ShutdownCalls)
 	}
-	if stubPoller.stopCalls != 1 {
-		t.Fatalf("expected poller stop, got %d", stubPoller.stopCalls)
+	if stubPoller.StopCalls != 1 {
+		t.Fatalf("expected poller stop, got %d", stubPoller.StopCalls)
 	}
-	if stubSrv.shutdownCalls != 1 {
-		t.Fatalf("expected http server shutdown, got %d", stubSrv.shutdownCalls)
+	if stubSrv.ShutdownCalls != 1 {
+		t.Fatalf("expected http server shutdown, got %d", stubSrv.ShutdownCalls)
 	}
 }
 
 func TestGracefulShutdownLogsErrors(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	stubSrv := &stubHTTPServer{shutdownErr: errors.New("srv err")}
-	stubMetrics := &stubHTTPServer{shutdownErr: errors.New("metrics err")}
-	stubPoller := &stubPoller{err: errors.New("poller err")}
+	stubSrv := &testutil.StubHTTPServer{ShutdownErr: errors.New("srv err")}
+	stubMetrics := &testutil.StubHTTPServer{ShutdownErr: errors.New("metrics err")}
+	stubPoller := &testutil.StubPoller{Err: errors.New("poller err")}
 
 	s := &Server{
 		logger:        logger,
@@ -323,25 +202,19 @@ func TestServerHandlesProviderErrorGracefully(t *testing.T) {
 	defer cancel()
 
 	cfg := config.Config{PollInterval: 5 * time.Millisecond}
-	srv := newServerWithProvider(cfg, nil, &errProvider{})
+	srv := newServerWithProvider(cfg, nil, &testutil.ErrProvider{Err: context.DeadlineExceeded})
 	srv.poller.Start(ctx)
 
 	// Give the poller a moment to attempt a fetch.
 	time.Sleep(20 * time.Millisecond)
 
 	router := srv.Handler()
-	gamesReq := httptest.NewRequest(http.MethodGet, "/games/today", nil)
-	gamesRec := httptest.NewRecorder()
-	router.ServeHTTP(gamesRec, gamesReq)
+	gamesRec := testutil.Serve(router, http.MethodGet, "/games/today", nil)
 
-	if gamesRec.Code != http.StatusOK {
-		t.Fatalf("expected 200 from /games/today, got %d", gamesRec.Code)
-	}
+	testutil.AssertStatus(t, gamesRec, http.StatusOK)
 
 	var today domain.TodayResponse
-	if err := json.NewDecoder(gamesRec.Body).Decode(&today); err != nil {
-		t.Fatalf("failed to decode games response: %v", err)
-	}
+	testutil.DecodeJSON(t, gamesRec, &today)
 
 	if len(today.Games) != 0 {
 		t.Fatalf("expected no games when provider errors, got %d", len(today.Games))
@@ -349,29 +222,29 @@ func TestServerHandlesProviderErrorGracefully(t *testing.T) {
 }
 
 func TestGracefulShutdownCallsStopAndShutdown(t *testing.T) {
-	svc := games.NewService(store.NewMemoryStore())
-	p := &stubPoller{}
-	httpSrv := &stubHTTPServer{}
+	svc := testutil.NewServiceWithGames(nil)
+	p := &testutil.StubPoller{}
+	httpSrv := &testutil.StubHTTPServer{}
 
 	srv := newServerWithDeps(config.Config{}, nil, svc, httpSrv, p)
 	srv.gracefulShutdown()
 
-	if p.stopCalls != 1 {
-		t.Fatalf("expected poller Stop to be called once, got %d", p.stopCalls)
+	if p.StopCalls != 1 {
+		t.Fatalf("expected poller Stop to be called once, got %d", p.StopCalls)
 	}
-	if httpSrv.shutdownCalls != 1 {
-		t.Fatalf("expected server Shutdown to be called once, got %d", httpSrv.shutdownCalls)
+	if httpSrv.ShutdownCalls != 1 {
+		t.Fatalf("expected server Shutdown to be called once, got %d", httpSrv.ShutdownCalls)
 	}
 }
 
 func TestGracefulShutdownTimesOutLongRunningShutdown(t *testing.T) {
-	svc := games.NewService(store.NewMemoryStore())
-	p := &stubPoller{}
+	svc := testutil.NewServiceWithGames(nil)
+	p := &testutil.StubPoller{}
 
-	blocking := &blockingHTTPServer{
-		addr:    ":0",
-		handler: http.NewServeMux(),
-		unblock: make(chan struct{}),
+	blocking := &testutil.BlockingHTTPServer{
+		AddrVal:    ":0",
+		HandlerVal: http.NewServeMux(),
+		Unblock:    make(chan struct{}),
 	}
 
 	original := shutdownTimeout
@@ -384,11 +257,11 @@ func TestGracefulShutdownTimesOutLongRunningShutdown(t *testing.T) {
 	srv.gracefulShutdown()
 	elapsed := time.Since(start)
 
-	if blocking.shutdownCalls != 1 {
-		t.Fatalf("expected server Shutdown to be called once, got %d", blocking.shutdownCalls)
+	if blocking.ShutdownCalls != 1 {
+		t.Fatalf("expected server Shutdown to be called once, got %d", blocking.ShutdownCalls)
 	}
-	if p.stopCalls != 1 {
-		t.Fatalf("expected poller Stop to be called once, got %d", p.stopCalls)
+	if p.StopCalls != 1 {
+		t.Fatalf("expected poller Stop to be called once, got %d", p.StopCalls)
 	}
 	if elapsed > 200*time.Millisecond {
 		t.Fatalf("shutdown took too long: %s", elapsed)
@@ -396,47 +269,25 @@ func TestGracefulShutdownTimesOutLongRunningShutdown(t *testing.T) {
 }
 
 func TestGracefulShutdownContinuesWhenPollerStopErrors(t *testing.T) {
-	svc := games.NewService(store.NewMemoryStore())
-	p := &stubPoller{err: errors.New("stop failure")}
-	httpSrv := &stubHTTPServer{}
+	svc := testutil.NewServiceWithGames(nil)
+	p := &testutil.StubPoller{Err: errors.New("stop failure")}
+	httpSrv := &testutil.StubHTTPServer{}
 
 	srv := newServerWithDeps(config.Config{}, nil, svc, httpSrv, p)
 	srv.gracefulShutdown()
 
-	if p.stopCalls != 1 {
-		t.Fatalf("expected poller Stop to be called once, got %d", p.stopCalls)
+	if p.StopCalls != 1 {
+		t.Fatalf("expected poller Stop to be called once, got %d", p.StopCalls)
 	}
-	if httpSrv.shutdownCalls != 1 {
-		t.Fatalf("expected server Shutdown to be called once, got %d", httpSrv.shutdownCalls)
+	if httpSrv.ShutdownCalls != 1 {
+		t.Fatalf("expected server Shutdown to be called once, got %d", httpSrv.ShutdownCalls)
 	}
-}
-
-type errHTTPServer struct {
-	shutdownCalls int
-}
-
-func (e *errHTTPServer) ListenAndServe() error {
-	return errors.New("listen failure")
-}
-
-func (e *errHTTPServer) Shutdown(ctx context.Context) error {
-	_ = ctx
-	e.shutdownCalls++
-	return nil
-}
-
-func (e *errHTTPServer) Addr() string {
-	return ":0"
-}
-
-func (e *errHTTPServer) Handler() http.Handler {
-	return http.NewServeMux()
 }
 
 func TestServerStartHandlesListenErrorAndStops(t *testing.T) {
-	svc := games.NewService(store.NewMemoryStore())
-	plr := &stubPoller{}
-	httpSrv := &errHTTPServer{}
+	svc := testutil.NewServiceWithGames(nil)
+	plr := &testutil.StubPoller{}
+	httpSrv := &testutil.ErrHTTPServer{}
 
 	srv := newServerWithDeps(config.Config{}, nil, svc, httpSrv, plr)
 
@@ -459,35 +310,13 @@ func TestServerStartHandlesListenErrorAndStops(t *testing.T) {
 	wg.Wait()
 }
 
-type closeableHTTPServer struct {
-	shutdownCalls int
-}
-
-func (c *closeableHTTPServer) ListenAndServe() error {
-	return http.ErrServerClosed
-}
-
-func (c *closeableHTTPServer) Shutdown(ctx context.Context) error {
-	_ = ctx
-	c.shutdownCalls++
-	return nil
-}
-
-func (c *closeableHTTPServer) Addr() string {
-	return ":0"
-}
-
-func (c *closeableHTTPServer) Handler() http.Handler {
-	return http.NewServeMux()
-}
-
 func TestRunCancelsAndStopsComponents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	svc := games.NewService(store.NewMemoryStore())
-	plr := &stubPoller{}
-	httpSrv := &closeableHTTPServer{}
+	svc := testutil.NewServiceWithGames(nil)
+	plr := &testutil.StubPoller{}
+	httpSrv := &testutil.CloseableHTTPServer{}
 
 	srv := newServerWithDeps(config.Config{}, nil, svc, httpSrv, plr)
 
@@ -507,13 +336,13 @@ func TestRunCancelsAndStopsComponents(t *testing.T) {
 		t.Fatal("run did not return after cancel")
 	}
 
-	if plr.startCalls != 1 {
-		t.Fatalf("expected poller Start called once, got %d", plr.startCalls)
+	if plr.StartCalls != 1 {
+		t.Fatalf("expected poller Start called once, got %d", plr.StartCalls)
 	}
-	if plr.stopCalls != 1 {
-		t.Fatalf("expected poller Stop called once, got %d", plr.stopCalls)
+	if plr.StopCalls != 1 {
+		t.Fatalf("expected poller Stop called once, got %d", plr.StopCalls)
 	}
-	if httpSrv.shutdownCalls != 1 {
-		t.Fatalf("expected server Shutdown called once, got %d", httpSrv.shutdownCalls)
+	if httpSrv.ShutdownCalls != 1 {
+		t.Fatalf("expected server Shutdown called once, got %d", httpSrv.ShutdownCalls)
 	}
 }

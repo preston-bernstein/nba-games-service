@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"nba-data-service/internal/app/games"
@@ -16,6 +18,17 @@ type stubProvider struct {
 	err   error
 }
 
+func callRefresh(t *testing.T, h *AdminHandler, method, path, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, nil)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	rr := httptest.NewRecorder()
+	h.RefreshSnapshots(rr, req)
+	return rr
+}
+
 func (s *stubProvider) FetchGames(ctx context.Context, date string, tz string) ([]domain.Game, error) {
 	_ = ctx
 	_ = date
@@ -25,10 +38,7 @@ func (s *stubProvider) FetchGames(ctx context.Context, date string, tz string) (
 
 func TestAdminRefreshRequiresAuth(t *testing.T) {
 	h := NewAdminHandler(nil, nil, nil, "secret", nil)
-	req := httptest.NewRequest(http.MethodPost, "/admin/snapshots/refresh", nil)
-	rr := httptest.NewRecorder()
-
-	h.RefreshSnapshots(rr, req)
+	rr := callRefresh(t, h, http.MethodPost, "/admin/snapshots/refresh", "")
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
 	}
@@ -42,11 +52,7 @@ func TestAdminRefreshWritesSnapshot(t *testing.T) {
 	}
 	h := NewAdminHandler(app, writer, provider, "secret", nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/snapshots/refresh?date=2024-01-01", nil)
-	req.Header.Set("Authorization", "Bearer secret")
-	rr := httptest.NewRecorder()
-
-	h.RefreshSnapshots(rr, req)
+	rr := callRefresh(t, h, http.MethodPost, "/admin/snapshots/refresh?date=2024-01-01", "secret")
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -61,12 +67,65 @@ func TestAdminRefreshRejectsInvalidDate(t *testing.T) {
 	}
 	h := NewAdminHandler(app, writer, provider, "secret", nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/snapshots/refresh?date=bad-date", nil)
-	req.Header.Set("Authorization", "Bearer secret")
-	rr := httptest.NewRecorder()
-
-	h.RefreshSnapshots(rr, req)
+	rr := callRefresh(t, h, http.MethodPost, "/admin/snapshots/refresh?date=bad-date", "secret")
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestAdminRefreshValidatesTimezone(t *testing.T) {
+	h := NewAdminHandler(games.NewService(nil), snapshots.NewWriter(t.TempDir(), 1), &stubProvider{games: []domain.Game{{ID: "g1"}}}, "secret", nil)
+
+	rr := callRefresh(t, h, http.MethodPost, "/admin/snapshots/refresh?tz=bad/tz", "secret")
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad tz, got %d", rr.Code)
+	}
+}
+
+func TestAdminRefreshNoGames(t *testing.T) {
+	h := NewAdminHandler(games.NewService(nil), snapshots.NewWriter(t.TempDir(), 1), &stubProvider{games: []domain.Game{}}, "secret", nil)
+
+	rr := callRefresh(t, h, http.MethodPost, "/admin/snapshots/refresh?date=2024-01-01", "secret")
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for no games, got %d", rr.Code)
+	}
+}
+
+func TestAdminRefreshHandlesWriterError(t *testing.T) {
+	app := games.NewService(nil)
+	// Base path is a file; writer will fail.
+	tmpFile := filepath.Join(t.TempDir(), "notadir")
+	if err := os.WriteFile(tmpFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("failed to create placeholder file: %v", err)
+	}
+	writer := snapshots.NewWriter(tmpFile, 1)
+	h := NewAdminHandler(app, writer, &stubProvider{games: []domain.Game{{ID: "g1"}}}, "secret", nil)
+
+	rr := callRefresh(t, h, http.MethodPost, "/admin/snapshots/refresh?date=2024-01-01", "secret")
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on write failure, got %d", rr.Code)
+	}
+}
+
+func TestAdminRefreshRequiresConfiguredWriterAndProvider(t *testing.T) {
+	h := NewAdminHandler(games.NewService(nil), nil, nil, "secret", nil)
+	rr := callRefresh(t, h, http.MethodPost, "/admin/snapshots/refresh?date=2024-01-01", "secret")
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when writer/provider missing, got %d", rr.Code)
+	}
+}
+
+func TestAdminRefreshMethodNotAllowed(t *testing.T) {
+	h := NewAdminHandler(nil, nil, nil, "secret", nil)
+	rr := callRefresh(t, h, http.MethodGet, "/admin/snapshots/refresh", "")
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rr.Code)
+	}
+}
+
+func TestAdminTokenFromEnv(t *testing.T) {
+	t.Setenv("ADMIN_TOKEN", "abc")
+	if got := AdminTokenFromEnv(); got != "abc" {
+		t.Fatalf("expected token from env, got %s", got)
 	}
 }

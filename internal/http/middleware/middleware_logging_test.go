@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"nba-data-service/internal/metrics"
+	"nba-data-service/internal/testutil"
 )
 
 func TestLoggingMiddlewareSetsRequestIDAndRecordsMetrics(t *testing.T) {
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	logger, _ := testutil.NewBufferLogger()
 	rec := metrics.NewRecorder()
 	nextCalled := false
 
@@ -26,18 +26,13 @@ func TestLoggingMiddlewareSetsRequestIDAndRecordsMetrics(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/games/today", nil)
-	rr := httptest.NewRecorder()
-
 	handler := LoggingMiddleware(logger, rec, next)
-	handler.ServeHTTP(rr, req)
+	rr := testutil.Serve(handler, http.MethodGet, "/games/today", nil)
 
 	if !nextCalled {
 		t.Fatalf("expected next handler to be called")
 	}
-	if rr.Code != http.StatusTeapot {
-		t.Fatalf("expected status 418, got %d", rr.Code)
-	}
+	testutil.AssertStatus(t, rr, http.StatusTeapot)
 	if rec.ProviderCalls("http") != 0 {
 		t.Fatalf("expected provider metrics untouched")
 	}
@@ -101,13 +96,12 @@ func BenchmarkLoggingMiddleware(b *testing.B) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/games/today", nil)
-	rr := httptest.NewRecorder()
-
 	handler := LoggingMiddleware(logger, rec, next)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/games/today", nil)
 		handler.ServeHTTP(rr, req)
 	}
 }
