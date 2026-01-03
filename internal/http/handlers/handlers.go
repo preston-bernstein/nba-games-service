@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	nethttp "net/http"
@@ -12,7 +11,6 @@ import (
 
 	"nba-data-service/internal/app/games"
 	"nba-data-service/internal/domain"
-	"nba-data-service/internal/http/middleware"
 	"nba-data-service/internal/poller"
 	"nba-data-service/internal/providers"
 	"nba-data-service/internal/snapshots"
@@ -52,7 +50,7 @@ func (h *Handler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request) {
 	case strings.HasPrefix(r.URL.Path, "/games/"):
 		h.GameByID(w, r)
 	default:
-		h.writeError(w, r, nethttp.StatusNotFound, "not found")
+		writeError(w, r, nethttp.StatusNotFound, "not found", h.logger)
 	}
 }
 
@@ -177,27 +175,6 @@ func (h *Handler) GameByID(w nethttp.ResponseWriter, r *nethttp.Request) {
 	}
 
 	writeJSON(w, nethttp.StatusOK, game, h.logger)
-}
-
-func (h *Handler) writeJSON(w nethttp.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(payload); err != nil && h.logger != nil {
-		h.logger.Error("failed to encode response", "err", err)
-	}
-}
-
-func (h *Handler) writeError(w nethttp.ResponseWriter, r *nethttp.Request, status int, message string) {
-	reqID := middleware.RequestIDFromContext(r.Context())
-	body := map[string]string{"error": message}
-	if reqID != "" {
-		body["requestId"] = reqID
-	}
-	h.writeJSON(w, status, body)
-}
-
-func (h *Handler) writeUpstreamError(w nethttp.ResponseWriter, r *nethttp.Request, status int, message string) {
-	h.writeError(w, r, status, message)
 }
 
 func (h *Handler) loadSnapshot(date string) (domain.TodayResponse, error) {

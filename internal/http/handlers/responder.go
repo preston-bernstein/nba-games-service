@@ -18,10 +18,7 @@ func writeJSON(w http.ResponseWriter, status int, payload any, logger *slog.Logg
 }
 
 func writeError(w http.ResponseWriter, r *http.Request, status int, message string, logger *slog.Logger) {
-	reqID := middleware.RequestIDFromContext(r.Context())
-	if reqID == "" {
-		reqID = r.Header.Get("X-Request-ID")
-	}
+	reqID := requestID(r)
 	body := map[string]string{"error": message}
 	if reqID != "" {
 		body["requestId"] = reqID
@@ -34,4 +31,14 @@ func loggerFromContext(r *http.Request, fallback *slog.Logger) *slog.Logger {
 		return fallback
 	}
 	return logging.FromContext(r.Context(), fallback)
+}
+
+func requestID(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if id := middleware.RequestIDFromContext(r.Context()); id != "" {
+		return id
+	}
+	return r.Header.Get("X-Request-ID")
 }

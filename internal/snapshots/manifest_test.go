@@ -27,3 +27,18 @@ func TestWriteManifestFailsWhenPathMissing(t *testing.T) {
 		t.Fatalf("expected error when base path missing")
 	}
 }
+
+func TestWriteManifestSuccess(t *testing.T) {
+	dir := t.TempDir()
+	m := defaultManifest(4)
+	if err := writeManifest(dir, m); err != nil {
+		t.Fatalf("expected manifest to be written, got %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+	if err != nil {
+		t.Fatalf("expected manifest file, got %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatalf("expected manifest content")
+	}
+}

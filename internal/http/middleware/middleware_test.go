@@ -41,6 +41,59 @@ func TestLoggingMiddlewareSetsRequestIDAndRecordsMetrics(t *testing.T) {
 	}
 }
 
+func TestLoggingMiddlewareGeneratesRequestIDWhenMissing(t *testing.T) {
+	logger, _ := testutil.NewBufferLogger()
+	rec := metrics.NewRecorder()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := RequestIDFromContext(r.Context()); got == "" {
+			t.Fatalf("expected generated request id")
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := LoggingMiddleware(logger, rec, next)
+	rr := testutil.Serve(handler, http.MethodGet, "/games/today?foo=bar", nil)
+
+	testutil.AssertStatus(t, rr, http.StatusOK)
+	if got := rr.Header().Get("X-Request-ID"); got == "" {
+		t.Fatalf("expected X-Request-ID header to be set")
+	}
+}
+
+func TestLoggingMiddlewareUsesForwardedFor(t *testing.T) {
+	logger, _ := testutil.NewBufferLogger()
+	rec := metrics.NewRecorder()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := LoggingMiddleware(logger, rec, next)
+	req := httptest.NewRequest(http.MethodGet, "/games/today", nil)
+	req.Header.Set("X-Forwarded-For", "198.51.100.1")
+	rr := testutil.ServeRequest(handler, req)
+
+	testutil.AssertStatus(t, rr, http.StatusOK)
+}
+
+// Ensure responseWriter defaults status correctly.
+func TestResponseWriterDefaultsStatus(t *testing.T) {
+	rr := httptest.NewRecorder()
+	w := &responseWriter{ResponseWriter: rr}
+	if w.status != 0 {
+		t.Fatalf("expected zero status before write, got %d", w.status)
+	}
+	w.WriteHeader(http.StatusAccepted)
+	if w.status != http.StatusAccepted {
+		t.Fatalf("expected status set to 202, got %d", w.status)
+	}
+}
+
+func TestNormalizePathHandlesEmpty(t *testing.T) {
+	if got := normalizePath(""); got != "" {
+		t.Fatalf("expected empty path to stay empty, got %s", got)
+	}
+}
+
 func TestNormalizePath(t *testing.T) {
 	tests := []struct {
 		in   string
@@ -85,6 +138,12 @@ func TestRequestIDSanitization(t *testing.T) {
 	sanitized := sanitizeRequestID("bad id")
 	if sanitized == "bad id" || sanitized == "" {
 		t.Fatalf("expected sanitized id to differ and be non-empty")
+	}
+}
+
+func TestRequestIDFromContextEmpty(t *testing.T) {
+	if got := RequestIDFromContext(nil); got != "" {
+		t.Fatalf("expected empty id for nil context, got %s", got)
 	}
 }
 

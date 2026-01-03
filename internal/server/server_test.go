@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"nba-data-service/internal/config"
 	"nba-data-service/internal/domain"
 	"nba-data-service/internal/metrics"
+	"nba-data-service/internal/poller"
+	"nba-data-service/internal/providers"
 	"nba-data-service/internal/providers/balldontlie"
 	"nba-data-service/internal/testutil"
 )
@@ -281,6 +284,121 @@ func TestGracefulShutdownContinuesWhenPollerStopErrors(t *testing.T) {
 	}
 	if httpSrv.ShutdownCalls != 1 {
 		t.Fatalf("expected server Shutdown to be called once, got %d", httpSrv.ShutdownCalls)
+	}
+}
+
+type closableProvider struct{ closed bool }
+
+func (c *closableProvider) FetchGames(ctx context.Context, date, tz string) ([]domain.Game, error) {
+	return nil, nil
+}
+
+func (c *closableProvider) Close() {
+	c.closed = true
+}
+
+type providerPoller struct {
+	provider providers.GameProvider
+	stop     int
+}
+
+func (p *providerPoller) Start(ctx context.Context)      {}
+func (p *providerPoller) Stop(ctx context.Context) error { p.stop++; return nil }
+func (p *providerPoller) Status() poller.Status          { return poller.Status{} }
+func (p *providerPoller) Provider() providers.GameProvider {
+	return p.provider
+}
+
+func TestGracefulShutdownClosesRateLimitedProvider(t *testing.T) {
+	svc := testutil.NewServiceWithGames(nil)
+	httpSrv := &testutil.StubHTTPServer{}
+	prov := &closableProvider{}
+	pp := &providerPoller{provider: prov}
+
+	srv := newServerWithDeps(config.Config{}, nil, svc, httpSrv, pp)
+
+	srv.gracefulShutdown()
+
+	if !prov.closed {
+		t.Fatalf("expected provider Close to be called")
+	}
+	if pp.stop != 1 {
+		t.Fatalf("expected poller Stop to be called once, got %d", pp.stop)
+	}
+}
+
+func TestPollerProviderReturnsNilWhenUnavailable(t *testing.T) {
+	svc := testutil.NewServiceWithGames(nil)
+	plr := &testutil.StubPoller{}
+	httpSrv := &testutil.StubHTTPServer{}
+
+	srv := newServerWithDeps(config.Config{}, nil, svc, httpSrv, plr)
+
+	if got := srv.pollerProvider(); got != nil {
+		t.Fatalf("expected nil provider when poller does not expose it")
+	}
+}
+
+func TestServerHandlerSetsRequestIDHeader(t *testing.T) {
+	cfg := config.Config{
+		Port:     "0",
+		Provider: "fixture",
+		Snapshots: config.SnapshotSyncConfig{
+			SnapshotFolder: t.TempDir(),
+		},
+	}
+	srv := New(cfg, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	srv.Handler().ServeHTTP(rr, req)
+	if got := rr.Header().Get("X-Request-ID"); got == "" {
+		t.Fatalf("expected X-Request-ID header set by middleware")
+	}
+}
+
+func TestAdminRouteMountedOnlyWithToken(t *testing.T) {
+	cfg := config.Config{
+		Port: "0",
+		Snapshots: config.SnapshotSyncConfig{
+			Enabled:        true,
+			SnapshotFolder: t.TempDir(),
+			AdminToken:     "secret",
+		},
+		Provider: "fixture",
+	}
+	srv := New(cfg, nil)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/admin/snapshots/refresh", nil)
+	srv.Handler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected admin route mounted with 401 without token, got %d", rr.Code)
+	}
+
+	cfg.Snapshots.AdminToken = ""
+	srv = New(cfg, nil)
+	rr = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected admin route absent without token, got %d", rr.Code)
+	}
+}
+
+func TestBuildMetricsUsesFallbackOnSetupError(t *testing.T) {
+	cfg := config.Config{
+		Metrics: config.MetricsConfig{Enabled: true},
+	}
+	orig := metricsSetup
+	defer func() { metricsSetup = orig }()
+	metricsSetup = func(ctx context.Context, cfg metrics.TelemetryConfig) (*metrics.Recorder, http.Handler, func(context.Context) error, error) {
+		return nil, nil, nil, errors.New("boom")
+	}
+
+	rec, srv, stop := buildMetrics(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	if rec == nil {
+		t.Fatalf("expected recorder even on setup error")
+	}
+	if srv != nil || stop != nil {
+		t.Fatalf("expected metrics server/shutdown nil when setup fails")
 	}
 }
 

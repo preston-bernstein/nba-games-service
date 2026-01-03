@@ -55,3 +55,62 @@ func TestSyncerBackfillsPastAndFuture(t *testing.T) {
 	requireSnapshotExists(t, writer, "2024-01-08")
 	requireSnapshotExists(t, writer, "2024-01-12")
 }
+
+type disabledProvider struct{}
+
+func (disabledProvider) FetchGames(ctx context.Context, date string, tz string) ([]domain.Game, error) {
+	return nil, nil
+}
+
+func TestSyncerSkipsWhenDisabledOrNil(t *testing.T) {
+	s := NewSyncer(nil, nil, SyncConfig{Enabled: false}, nil)
+	s.Run(context.Background())
+
+	s = NewSyncer(disabledProvider{}, nil, SyncConfig{Enabled: true}, nil)
+	s.Run(context.Background())
+}
+
+func TestSyncerSleepRespectsContext(t *testing.T) {
+	s := NewSyncer(nil, nil, SyncConfig{Enabled: true}, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	start := time.Now()
+	s.sleep(ctx, time.Second)
+	if time.Since(start) > 50*time.Millisecond {
+		t.Fatalf("expected sleep to return quickly when context canceled")
+	}
+}
+
+func TestHasSnapshotNilWriter(t *testing.T) {
+	s := NewSyncer(nil, nil, SyncConfig{}, nil)
+	if s.hasSnapshot("2024-01-01") {
+		t.Fatalf("expected hasSnapshot to be false with nil writer")
+	}
+}
+
+func TestBuildDatesSkipsExistingSnapshots(t *testing.T) {
+	w := NewWriter(t.TempDir(), 10000)
+	writeSimpleSnapshot(t, w, "2024-01-03") // past (beyond yesterday)
+	writeSimpleSnapshot(t, w, "2024-01-06") // future
+
+	s := NewSyncer(nil, w, SyncConfig{Enabled: true, Days: 5, FutureDays: 2}, nil)
+	now := time.Date(2024, 1, 5, 10, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return now }
+	dates := s.buildDates(s.now())
+
+	want := map[string]bool{
+		"2024-01-05": true, // today
+		"2024-01-04": true, // yesterday
+	}
+	for _, d := range dates {
+		if want[d] {
+			delete(want, d)
+		}
+		if d == "2024-01-03" || d == "2024-01-06" {
+			t.Fatalf("expected existing snapshots to be skipped, got %s", d)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("expected today and yesterday to be present, missing %v", want)
+	}
+}

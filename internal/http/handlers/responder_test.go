@@ -44,3 +44,14 @@ func TestWriteJSONLogsEncodeError(t *testing.T) {
 		t.Fatalf("expected logger to record encode error")
 	}
 }
+
+func TestWriteErrorFallsBackToHeaderRequestID(t *testing.T) {
+	logger, _ := testutil.NewBufferLogger()
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("X-Request-ID", "header-id")
+	writeError(rr, req, http.StatusTeapot, "boom", logger)
+	if !bytes.Contains(rr.Body.Bytes(), []byte("header-id")) {
+		t.Fatalf("expected header request id used when context missing")
+	}
+}
