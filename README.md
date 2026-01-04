@@ -4,7 +4,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)](coverage.out)
 [![Go Version](https://img.shields.io/badge/go-1.21+-blue)](https://go.dev/doc/devel/release)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Go Report](https://img.shields.io/badge/go%20report-local%20module%20(no%20proxy)-blueviolet)](#)
+[![Go Report Card](https://goreportcard.com/badge/github.com/preston-bernstein/nba-data-service)](https://goreportcard.com/report/github.com/preston-bernstein/nba-data-service)
 
 ### What it does
 - Serves NBA games from cache/snapshots over a small HTTP API.
