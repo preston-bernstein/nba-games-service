@@ -3,7 +3,7 @@ package balldontlie
 import (
 	"testing"
 
-	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/preston-bernstein/nba-data-service/internal/domain"
 )
 
 func TestMapGameTransformsFields(t *testing.T) {

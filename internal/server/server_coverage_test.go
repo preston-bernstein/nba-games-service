@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/prestonbernstein/nba-data-service/internal/config"
-	"github.com/prestonbernstein/nba-data-service/internal/metrics"
+	"github.com/preston-bernstein/nba-data-service/internal/config"
+	"github.com/preston-bernstein/nba-data-service/internal/metrics"
 )
 
 // metricsSetupSuccess allows us to force a handler to test buildMetrics success path.

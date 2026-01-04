@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/prestonbernstein/nba-data-service/internal/config"
-	"github.com/prestonbernstein/nba-data-service/internal/providers/fixture"
+	"github.com/preston-bernstein/nba-data-service/internal/config"
+	"github.com/preston-bernstein/nba-data-service/internal/providers/fixture"
 )
 
 func TestBuildSnapshotsRespectsConfig(t *testing.T) {

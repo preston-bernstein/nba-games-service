@@ -3,7 +3,7 @@ package testutil
 import (
 	"context"
 
-	"github.com/prestonbernstein/nba-data-service/internal/metrics"
+	"github.com/preston-bernstein/nba-data-service/internal/metrics"
 )
 
 // NewRecorderWithShutdown returns a recorder and a no-op shutdown to simplify tests.

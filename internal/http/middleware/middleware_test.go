@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prestonbernstein/nba-data-service/internal/metrics"
-	"github.com/prestonbernstein/nba-data-service/internal/testutil"
+	"github.com/preston-bernstein/nba-data-service/internal/metrics"
+	"github.com/preston-bernstein/nba-data-service/internal/testutil"
 )
 
 func TestLoggingMiddlewareSetsRequestIDAndRecordsMetrics(t *testing.T) {

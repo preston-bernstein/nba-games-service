@@ -6,9 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/prestonbernstein/nba-data-service/internal/config"
-	"github.com/prestonbernstein/nba-data-service/internal/logging"
-	"github.com/prestonbernstein/nba-data-service/internal/server"
+	"github.com/preston-bernstein/nba-data-service/internal/config"
+	"github.com/preston-bernstein/nba-data-service/internal/logging"
+	"github.com/preston-bernstein/nba-data-service/internal/server"
 )
 
 const appVersion = "dev"

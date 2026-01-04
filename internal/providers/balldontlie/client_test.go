@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prestonbernstein/nba-data-service/internal/providers"
+	"github.com/preston-bernstein/nba-data-service/internal/providers"
 )
 
 func TestFetchGamesHitsAPIAndMapsResponse(t *testing.T) {

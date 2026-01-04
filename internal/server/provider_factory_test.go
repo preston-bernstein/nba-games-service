@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/prestonbernstein/nba-data-service/internal/config"
+	"github.com/preston-bernstein/nba-data-service/internal/config"
 )
 
 func TestProviderFactoryBuildsWithDefaultInterval(t *testing.T) {

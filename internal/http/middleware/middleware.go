@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prestonbernstein/nba-data-service/internal/logging"
-	"github.com/prestonbernstein/nba-data-service/internal/metrics"
+	"github.com/preston-bernstein/nba-data-service/internal/logging"
+	"github.com/preston-bernstein/nba-data-service/internal/metrics"
 )
 
 // LoggingMiddleware wraps the handler with request logging, request ID support, and metrics.

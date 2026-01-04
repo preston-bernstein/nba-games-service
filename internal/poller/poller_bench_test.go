@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prestonbernstein/nba-data-service/internal/app/games"
-	"github.com/prestonbernstein/nba-data-service/internal/domain"
-	"github.com/prestonbernstein/nba-data-service/internal/store"
+	"github.com/preston-bernstein/nba-data-service/internal/app/games"
+	"github.com/preston-bernstein/nba-data-service/internal/domain"
+	"github.com/preston-bernstein/nba-data-service/internal/store"
 )
 
 type benchProvider struct {

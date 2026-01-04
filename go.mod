@@ -1,4 +1,4 @@
-module github.com/prestonbernstein/nba-data-service
+module github.com/preston-bernstein/nba-data-service
 
 go 1.21.13
 

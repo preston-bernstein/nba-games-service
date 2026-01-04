@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/prestonbernstein/nba-data-service/internal/config"
-	"github.com/prestonbernstein/nba-data-service/internal/domain"
-	"github.com/prestonbernstein/nba-data-service/internal/metrics"
-	"github.com/prestonbernstein/nba-data-service/internal/providers"
-	"github.com/prestonbernstein/nba-data-service/internal/testutil"
+	"github.com/preston-bernstein/nba-data-service/internal/config"
+	"github.com/preston-bernstein/nba-data-service/internal/domain"
+	"github.com/preston-bernstein/nba-data-service/internal/metrics"
+	"github.com/preston-bernstein/nba-data-service/internal/providers"
+	"github.com/preston-bernstein/nba-data-service/internal/testutil"
 )
 
 type nopProvider struct{}
