@@ -6,7 +6,7 @@ import (
 
 	"log/slog"
 
-	"nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
 )
 
 // rateLimitedProvider wraps a GameProvider and enforces a minimum interval between calls.

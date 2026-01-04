@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"nba-data-service/internal/app/games"
-	"nba-data-service/internal/logging"
-	"nba-data-service/internal/metrics"
-	"nba-data-service/internal/providers"
+	"github.com/prestonbernstein/nba-data-service/internal/app/games"
+	"github.com/prestonbernstein/nba-data-service/internal/logging"
+	"github.com/prestonbernstein/nba-data-service/internal/metrics"
+	"github.com/prestonbernstein/nba-data-service/internal/providers"
 )
 
 const defaultInterval = 30 * time.Second

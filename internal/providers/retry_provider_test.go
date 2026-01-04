@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"nba-data-service/internal/domain"
-	"nba-data-service/internal/metrics"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/metrics"
 )
 
 type flakeyProvider struct {

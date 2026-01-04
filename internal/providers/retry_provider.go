@@ -7,9 +7,9 @@ import (
 	"math/rand"
 	"time"
 
-	"nba-data-service/internal/domain"
-	"nba-data-service/internal/logging"
-	"nba-data-service/internal/metrics"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/logging"
+	"github.com/prestonbernstein/nba-data-service/internal/metrics"
 )
 
 const (

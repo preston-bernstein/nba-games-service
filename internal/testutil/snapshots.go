@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"nba-data-service/internal/domain"
-	"nba-data-service/internal/snapshots"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/snapshots"
 )
 
 // NewTempWriter returns a snapshot writer rooted in a temp dir.

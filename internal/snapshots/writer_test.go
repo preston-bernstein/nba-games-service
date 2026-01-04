@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
 )
 
 func TestWriterWritesSnapshotAndManifest(t *testing.T) {

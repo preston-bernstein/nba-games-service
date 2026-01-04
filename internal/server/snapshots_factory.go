@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"nba-data-service/internal/config"
-	"nba-data-service/internal/providers"
-	"nba-data-service/internal/snapshots"
+	"github.com/prestonbernstein/nba-data-service/internal/config"
+	"github.com/prestonbernstein/nba-data-service/internal/providers"
+	"github.com/prestonbernstein/nba-data-service/internal/snapshots"
 )
 
 type snapshotComponents struct {

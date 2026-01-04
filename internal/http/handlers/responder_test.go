@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"nba-data-service/internal/testutil"
+	"github.com/prestonbernstein/nba-data-service/internal/testutil"
 )
 
 func TestWriteErrorIncludesRequestID(t *testing.T) {

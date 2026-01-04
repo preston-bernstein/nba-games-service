@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
 )
 
 // Writer persists snapshots and manifest with pruning.

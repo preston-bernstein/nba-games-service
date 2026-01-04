@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"nba-data-service/internal/app/games"
-	"nba-data-service/internal/domain"
-	"nba-data-service/internal/snapshots"
-	"nba-data-service/internal/testutil"
+	"github.com/prestonbernstein/nba-data-service/internal/app/games"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/snapshots"
+	"github.com/prestonbernstein/nba-data-service/internal/testutil"
 )
 
 type stubProvider struct {

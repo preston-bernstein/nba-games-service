@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"nba-data-service/internal/app/games"
-	"nba-data-service/internal/domain"
-	"nba-data-service/internal/store"
+	"github.com/prestonbernstein/nba-data-service/internal/app/games"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/store"
 )
 
 type stubProvider struct {

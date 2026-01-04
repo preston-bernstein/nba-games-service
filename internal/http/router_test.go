@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
-	"nba-data-service/internal/app/games"
-	"nba-data-service/internal/http/handlers"
-	"nba-data-service/internal/store"
-	"nba-data-service/internal/testutil"
+	"github.com/prestonbernstein/nba-data-service/internal/app/games"
+	"github.com/prestonbernstein/nba-data-service/internal/http/handlers"
+	"github.com/prestonbernstein/nba-data-service/internal/store"
+	"github.com/prestonbernstein/nba-data-service/internal/testutil"
 )
 
 func TestRouterRoutesKnownPaths(t *testing.T) {

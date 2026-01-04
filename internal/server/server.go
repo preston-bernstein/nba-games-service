@@ -5,16 +5,16 @@ import (
 	"log/slog"
 	"net/http"
 
-	"nba-data-service/internal/app/games"
-	"nba-data-service/internal/config"
-	httpserver "nba-data-service/internal/http"
-	"nba-data-service/internal/http/handlers"
-	"nba-data-service/internal/http/middleware"
-	"nba-data-service/internal/logging"
-	"nba-data-service/internal/metrics"
-	"nba-data-service/internal/poller"
-	"nba-data-service/internal/providers"
-	"nba-data-service/internal/store"
+	"github.com/prestonbernstein/nba-data-service/internal/app/games"
+	"github.com/prestonbernstein/nba-data-service/internal/config"
+	httpserver "github.com/prestonbernstein/nba-data-service/internal/http"
+	"github.com/prestonbernstein/nba-data-service/internal/http/handlers"
+	"github.com/prestonbernstein/nba-data-service/internal/http/middleware"
+	"github.com/prestonbernstein/nba-data-service/internal/logging"
+	"github.com/prestonbernstein/nba-data-service/internal/metrics"
+	"github.com/prestonbernstein/nba-data-service/internal/poller"
+	"github.com/prestonbernstein/nba-data-service/internal/providers"
+	"github.com/prestonbernstein/nba-data-service/internal/store"
 )
 
 var metricsSetup = metrics.Setup

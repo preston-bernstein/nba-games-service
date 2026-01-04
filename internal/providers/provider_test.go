@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
 )
 
 type testProvider struct{}

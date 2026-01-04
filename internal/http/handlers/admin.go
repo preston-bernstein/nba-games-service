@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"nba-data-service/internal/app/games"
-	"nba-data-service/internal/domain"
-	"nba-data-service/internal/providers"
-	"nba-data-service/internal/snapshots"
+	"github.com/prestonbernstein/nba-data-service/internal/app/games"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/providers"
+	"github.com/prestonbernstein/nba-data-service/internal/snapshots"
 )
 
 // AdminHandler exposes admin-only endpoints (e.g., snapshot refresh).

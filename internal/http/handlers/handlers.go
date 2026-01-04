@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"nba-data-service/internal/app/games"
-	"nba-data-service/internal/domain"
-	"nba-data-service/internal/poller"
-	"nba-data-service/internal/providers"
-	"nba-data-service/internal/snapshots"
+	"github.com/prestonbernstein/nba-data-service/internal/app/games"
+	"github.com/prestonbernstein/nba-data-service/internal/domain"
+	"github.com/prestonbernstein/nba-data-service/internal/poller"
+	"github.com/prestonbernstein/nba-data-service/internal/providers"
+	"github.com/prestonbernstein/nba-data-service/internal/snapshots"
 )
 
 type nowFunc func() time.Time
