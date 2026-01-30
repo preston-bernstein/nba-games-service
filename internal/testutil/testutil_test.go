@@ -81,7 +81,9 @@ func TestSnapshotHelpers(t *testing.T) {
 func TestHTTPHelperErrorFormatting(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rr.WriteHeader(http.StatusBadRequest)
-	rr.WriteString(strings.Repeat("x", 600))
+	if _, err := rr.WriteString(strings.Repeat("x", 600)); err != nil {
+		t.Fatalf("expected write success, got %v", err)
+	}
 
 	if err := statusError(rr, http.StatusOK); err == nil {
 		t.Fatalf("expected status error")
@@ -96,12 +98,16 @@ func TestHTTPHelperErrorFormatting(t *testing.T) {
 	}
 
 	rr = httptest.NewRecorder()
-	rr.WriteString(`{"ok":true}`)
+	if _, err := rr.WriteString(`{"ok":true}`); err != nil {
+		t.Fatalf("expected write success, got %v", err)
+	}
 	if err := decodeJSONBody(rr, &map[string]any{}); err != nil {
 		t.Fatalf("expected decode success, got %v", err)
 	}
 	rr = httptest.NewRecorder()
-	rr.WriteString("not-json")
+	if _, err := rr.WriteString("not-json"); err != nil {
+		t.Fatalf("expected write success, got %v", err)
+	}
 	var dest map[string]any
 	if err := decodeJSONBody(rr, &dest); err == nil {
 		t.Fatalf("expected decode error")

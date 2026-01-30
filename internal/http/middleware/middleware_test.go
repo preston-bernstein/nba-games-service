@@ -125,8 +125,8 @@ func TestRequestIDHelpers(t *testing.T) {
 }
 
 func TestRequestIDFromContextEmpty(t *testing.T) {
-	if got := RequestIDFromContext(nil); got != "" {
-		t.Fatalf("expected empty id for nil context, got %s", got)
+	if got := RequestIDFromContext(context.TODO()); got != "" {
+		t.Fatalf("expected empty id for empty context, got %s", got)
 	}
 }
 

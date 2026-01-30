@@ -84,8 +84,8 @@ func TestParseLevelFallsBackOnUnknown(t *testing.T) {
 
 func TestFromContextHandlesNilContext(t *testing.T) {
 	logger := slog.Default()
-	if got := FromContext(nil, logger); got != logger {
-		t.Fatalf("expected fallback logger for nil context")
+	if got := FromContext(context.TODO(), logger); got != logger {
+		t.Fatalf("expected fallback logger for empty context")
 	}
 }
 

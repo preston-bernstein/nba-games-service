@@ -288,8 +288,6 @@ func (m scriptedMeter) Float64Histogram(name string, opts ...metric.Float64Histo
 	return m.Meter.Float64Histogram(name, opts...)
 }
 
-func (scriptedMeter) meter() {}
-
 type scriptedProvider struct {
 	metric.MeterProvider
 	m metric.Meter
