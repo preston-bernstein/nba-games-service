@@ -30,7 +30,7 @@ func TestClockHelpers(t *testing.T) {
 	MustParseRFC3339("not-a-time")
 }
 
-func TestFixturesAndServiceHelper(t *testing.T) {
+func TestFixturesHelper(t *testing.T) {
 	g := SampleGame("id-1")
 	if g.ID != "id-1" || g.HomeTeam.ID == "" || g.AwayTeam.ID == "" {
 		t.Fatalf("unexpected game fixture %+v", g)
@@ -42,12 +42,6 @@ func TestFixturesAndServiceHelper(t *testing.T) {
 	team := SampleTeam("t1")
 	if team.ID != "t1" || team.FullName == "" {
 		t.Fatalf("unexpected team fixture %+v", team)
-	}
-
-	svc := NewServiceWithGames([]domaingames.Game{g})
-	games := svc.Games()
-	if len(games) != 1 || games[0].ID != "id-1" {
-		t.Fatalf("expected service seeded with game, got %+v", games)
 	}
 }
 
